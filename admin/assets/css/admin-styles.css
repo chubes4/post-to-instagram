@@ -1,0 +1,20 @@
+/* Post to Instagram - Admin Styles */
+
+/* Styles for the Gutenberg sidebar panel */
+.pti-sidebar-panel {
+    padding: 10px;
+}
+
+/* Styles for modals (if custom styling beyond WP components is needed) */
+.pti-modal .components-modal__content {
+    /* Custom styles for modal content */
+}
+
+.pti-modal .components-modal__header {
+    /* Custom styles for modal header */
+}
+
+/* Styles for the notice container */
+.pti-notices-container .components-notice {
+    margin-bottom: 8px;
+} 

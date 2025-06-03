@@ -1,0 +1,36 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+You are now creating, updating, or refining .mdc files in the .cursor/rules directory. 
+
+The project should always have at least two main .mdc files. If they do not exist, you must create them:
+
+1. .cursor/rules/project-architecture.mdc - this file outlines the codebase and provides a high level, yet extremely specific overview of how everything works. It is developer-facing documentation designed to provide detailed context of the codebase an how it works for the developers. It provides complete clarity on the function, purpose, and goals of the project, and is organized into sections. The top section is the introduction, explaining the project's basic purpose, and it's goals and high level overview. Then, it gets into the nitty gritty breakdown of existing major features, how each one works, and which files, functions, and dependences are involved. Each major feature is given its own heading and dedicated section. The file notes dependencies, important variables, nonce names, and other relevant files and features, including how they interact with one another. 
+
+2. .cursor/rules/project-plan.mdc - this file contains the immediate action plan and future outlook for features and refactor ideas. It is organized by priority in 5 sections: high, medium, low, known bugs, and ideas. Upon completing a task in the plan, the old task should be deleted to the plan, and the new functionality should be noted in the architecture. This document should ONLY containg forward-looking steps, and should NOT contain any architecture, just feature plans and ideas.
+
+These two main .mdc files are tightly coupled and always accurate and up-to-date. If you find that there is discrepancy between the documentation and the codebase, you should always update the documentation to be explicitly accurate. 
+
+For large refactors or complex feature ideas, we will create dedicated .mdc files that will encapsulate the plan for that specific refactor. We should focus on detailed, step-by-step, and bite-sized chunks to ensure accuracy when using AI tools. These .mdc files will be created at the request of the user, and will be equally detailed and accurate, focusing on developer clarity and efficiency. 
+
+Current refactor .mdc files:
+
+None
+
+##Key Considerations
+
+When updating .mdc files, ALWAYS make sure that the flow is clear. You should NEVER simply append new information to the end unless it makes sense to do so. The document is LIVING, and BREATHING, and always clear and clean. 
+
+Each .mdc file MUST begin with:
+
+---
+description: [Describe the purpose of this file]
+globs: file-name.mdc
+alwaysApply: false
+---
+
+You MUST note any contradictions or redundancies you discover and repair them. 
+
+The DATE is only included once at the top of each .mdc file.

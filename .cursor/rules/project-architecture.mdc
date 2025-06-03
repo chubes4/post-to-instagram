@@ -1,0 +1,188 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+**Project Architecture: Post to Instagram WordPress Plugin**
+
+**Date:** [Current Date]
+
+**1. Introduction**
+**Project Architecture: Post to Instagram WordPress Plugin**
+
+**Date:** October 2, 2024
+
+**1. Introduction**
+
+The "Post to Instagram" plugin allows WordPress users to easily publish images from their posts directly to a connected Instagram account. It integrates into the post editor, providing a streamlined workflow for selecting images, adding a caption, and either posting immediately or scheduling for later. The plugin aims for a simple user experience, leveraging WordPress native UI elements where possible and secure authentication via the Instagram Graph API.
+
+**Goals:**
+*   Provide a simple and intuitive way to post images from WordPress posts to Instagram.
+*   Securely handle Instagram authentication using OAuth 2.0, including initial App ID/Secret setup.
+*   Allow posting of multiple images (carousels).
+*   Offer scheduling functionality for Instagram posts.
+*   Track which images have been shared or scheduled.
+*   Maintain a lightweight and modular codebase adhering to WordPress best practices.
+
+**High-Level Overview:**
+
+The plugin is structured into three main directories: `admin/` (handles WP admin UI and post editor integration), `auth/` (manages Instagram authentication), and `schedule/` (handles post scheduling via WP Cron). A main plugin file (`post-to-instagram.php`) initializes the plugin, loads dependencies, and handles hooks.
+
+**Data Flow:**
+1.  User clicks "Post to Instagram" in the post editor.
+2.  Plugin checks if App ID/Secret are configured and if authentication is complete (credentials stored in `pti_settings` option).
+3.  If App ID/Secret are missing or user not authenticated, an initial setup/authentication modal is displayed in the post editor. This modal collects App ID, App Secret, and then initiates the OAuth flow. Tokens and App credentials are stored in `pti_settings`.
+4.  If configured and authenticated, a media modal allows image selection from the current post.
+5.  User reorders images (if multiple), adds a caption.
+6.  User chooses to "Post Now" or "Schedule".
+7.  For "Post Now", images are uploaded to Instagram and the post is published via the Graph API.
+8.  For "Schedule", post details are saved as a custom post type, and a WP Cron job handles future publishing.
+9.  Post/image metadata is updated to reflect sharing status.
+
+**2. Core Components & Features**
+
+**2.1. Main Plugin File (`post-to-instagram.php`)**
+
+*   **Purpose:** Initializes the plugin, loads all necessary files, defines constants, and handles activation/deactivation hooks.
+*   **Key Functions/Responsibilities:**
+    *   Plugin header comments.
+    *   Defining constants: `PTI_PLUGIN_PATH`, `PTI_PLUGIN_URL`, `PTI_VERSION`, `PTI_PLUGIN_FILE`.
+    *   Including core class files or an autoloader.
+    *   Instantiating main classes from `admin/`, `auth/`, and `schedule/` directories.
+    *   Registering activation hook (e.g., for setting up default options, checking dependencies).
+    *   Registering deactivation hook (e.g., for cleaning up options, unregistering cron jobs).
+*   **Dependencies:** None external to the plugin itself, relies on WordPress core functions.
+
+**2.2. Authentication Module (`auth/`)**
+
+*   **Purpose:** Handles all aspects of Instagram Graph API authentication using OAuth 2.0, including initial setup of App ID and App Secret.
+*   **Files & Key Classes:**
+    *   `auth/class-auth-handler.php`:
+        *   Manages storage and retrieval of App ID and App Secret from `pti_settings` option.
+        *   Generates the Instagram authorization URL (uses stored App ID).
+        *   Handles the OAuth redirect: receives authorization code, exchanges for short-lived and then long-lived access tokens (uses stored App ID & App Secret).
+        *   Stores/retrieves the long-lived access token and user ID in/from `pti_settings` (e.g., `pti_settings['auth_details']`).
+        *   Provides a method `is_configured()` to check if App ID/Secret are set.
+        *   Provides a method `is_authenticated()` to check current auth status.
+        *   Provides a method to clear/disconnect all stored credentials (App ID, Secret, tokens).
+        *   (Future: Manages token refresh).
+    *   AJAX handlers (defined in this module or `admin/`) for:
+        *   Saving App ID/Secret.
+        *   Checking configuration and authentication status from the client-side.
+        *   Initiating disconnection.
+*   **Key WordPress Options:**
+    *   `pti_settings`: An array storing `app_id`, `app_secret`, and `auth_details` (which contains the long-lived access token and Instagram User ID).
+*   **Nonces:** Specific nonces for AJAX actions related to App setup and authentication.
+*   **Interactions:**
+    *   Interacts with the Admin UI (`admin/`) to trigger the setup/auth modal when a user isn't configured or authenticated.
+    *   Called by the API interaction module to retrieve the access token for API calls.
+
+**2.2a. REST API Endpoints (`includes/class-pti-rest-api.php`)**
+
+*   **Purpose:** Registers all REST API endpoints for the plugin in a single, central class.
+*   **Files & Key Classes:**
+    *   `includes/class-pti-rest-api.php`:
+        *   Registers all REST API endpoints for the plugin (e.g., `/pti/v1/auth/status`).
+        *   Each endpoint's callback delegates to the appropriate business logic class (e.g., `PTI_Auth_Handler`).
+        *   Future endpoints for posting, scheduling, etc. will be added here.
+    *   This class is required and instantiated in the main plugin file (`post-to-instagram.php`) and is always loaded.
+*   **Interactions:**
+    *   REST API endpoints call static methods on business logic classes (e.g., `PTI_Auth_Handler`) for their logic.
+    *   All REST API logic is now decoupled from business logic classes.
+
+**2.3. Admin Interface & Post Editor Integration (`admin/`)**
+
+*   **Purpose:** Creates the user interface elements within the WordPress admin area, primarily within the post editor, to enable Instagram posting and initial app setup/authentication.
+*   **Files & Key Classes/Scripts:**
+    *   `admin/class-admin-ui.php`:
+        *   Registers the "Post to Instagram" sidebar panel/button in the post editor (Gutenberg sidebar API or Classic Editor meta box API).
+        *   Enqueues necessary CSS and JavaScript assets.
+    *   `admin/assets/js/post-editor.js` (or similar):
+        *   Handles the click event for the "Post to Instagram" button.
+        *   Manages the display of the setup/authentication modal or the image selection modal based on configuration/auth status by using React functional components and WordPress hooks (`useState`, `useEffect`).
+        *   Communicates with the WordPress REST API endpoint (`/pti/v1/auth/status`) to check authentication status.
+        *   Initiates the OAuth flow by opening a popup window to the authorization URL provided by `pti_data`.
+        *   Handles AJAX communication for saving App ID/Secret, authentication, posting/scheduling, and disconnecting. (Placeholders/structure for these actions are present, with saving App ID/Secret and disconnecting using AJAX, while auth status check uses REST).
+    *   `admin/assets/css/admin-styles.css`: Styles for modals and UI elements if needed beyond WP core styles.
+    *   PHP functions for AJAX handlers (`wp_ajax_...`) for:
+        *   Saving App ID/Secret.
+        *   Handling disconnection.
+        *   (Authentication status check moved to REST API).
+        *   Submitting the post to Instagram (either directly or for scheduling).
+*   **Key UI Elements:**
+    *   "Post to Instagram" button in post editor sidebar.
+    *   Setup/Authentication Modal: Inputs for App ID/Secret, "Connect to Instagram" button, "Disconnect Instagram Account" button.
+    *   Image Selection Modal (`wp.media`):
+        *   Filters to show images attached to the current post.
+        *   Multi-select enabled.
+        *   Visual cues for already shared/scheduled images.
+    *   Reorder & Caption Modal View (within `wp.media` or custom):
+        *   Thumbnail previews of selected images.
+        *   Drag-and-drop reordering.
+        *   Caption textarea.
+    *   Post/Schedule options.
+*   **Nonces:** Used for all AJAX actions (e.g., `pti_save_app_creds_nonce`, `pti_disconnect_nonce`, `pti_post_media_nonce`, `pti_schedule_media_nonce`). The REST API uses WordPress's built-in nonce handling for `wp.apiFetch`.
+*   **Interactions:**
+    *   Works closely with the `auth/` module for configuration and authentication checks/processes (REST API and AJAX).
+    *   Utilizes `wp.media` for image selection UI.
+    *   Calls the Instagram API module (directly or via an intermediary) for actual posting.
+    *   Interacts with the `schedule/` module to save scheduled posts.
+
+**2.4. Instagram API Communication (Likely within `admin/` or a dedicated `includes/` directory)**
+
+*   **Purpose:** Encapsulates all direct communication with the Instagram Graph API for posting content.
+*   **Files & Key Classes:**
+    *   `includes/class-instagram-api.php`:
+        *   Retrieves the authenticated user ID and access token (from `auth/` module or `pti_settings` option).
+        *   Method to upload a single image and get its media container ID.
+        *   Method to create a carousel container using an array of media container IDs and a caption.
+        *   Method to publish the carousel container.
+        *   Handles API request construction, sending (`wp_remote_post`/`wp_remote_get`), and response parsing.
+        *   Implements robust error handling and logging for API interactions.
+*   **Dependencies:** Relies on `auth/` for App ID/Secret and access tokens. WordPress HTTP API functions.
+*   **Interactions:** Called by the `admin/` AJAX handlers when a user chooses to "Post Now". Called by the `schedule/` module when a cron job processes a scheduled post.
+
+**2.5. Scheduling Module (`schedule/`)**
+
+*   **Purpose:** Manages the scheduling and automated publishing of Instagram posts via WP Cron.
+*   **Files & Key Classes:**
+    *   `schedule/class-scheduler.php`:
+        *   Registers a custom WP Cron job and interval.
+        *   Defines the cron task function that queries for pending scheduled posts.
+        *   For each due post, it retrieves the necessary data and uses the Instagram API communication module to publish it.
+        *   Updates the status of the scheduled post.
+    *   `schedule/class-scheduled-post-cpt.php` (if using CPT):
+        *   Registers the Custom Post Type `pti_scheduled_ig_post`.
+*   **Data Storage (CPT: `pti_scheduled_ig_post`):** WordPress Post ID, attachment IDs, caption, scheduled time, status, API response/errors.
+*   **WP Cron:** Custom hook and interval.
+*   **Interactions:** `admin/` module creates CPT entries. WP Cron triggers scheduler. Scheduler uses Instagram API module.
+
+**2.6. Image Tracking & Metadata**
+
+*   **Purpose:** To keep track of which images from a WordPress post have been shared to Instagram or are scheduled to be shared.
+*   **Storage:**
+    *   **Post Meta:** `_pti_instagram_shared_images` (array: `{attachment_id, instagram_media_id, timestamp_shared}`).
+    *   **Attachment Meta:** `_pti_instagram_status` (`shared`, `scheduled`), `_pti_instagram_media_id`.
+*   **Functionality:** Update metadata on post/schedule. Image Selection Modal reads metadata for UI cues.
+*   **Interactions:** Updated by `admin/` (direct post) and `schedule/` (scheduled post).
+
+**3. Dependencies**
+
+*   **WordPress Core:** Version 5.0+.
+*   **PHP:** Version 7.4+.
+*   **Instagram Graph API:** Requires a Facebook Developer App (App ID, App Secret) with necessary permissions.
+
+**4. Important Variables & Nonces**
+
+*   **Options Table Key:** `pti_settings` (array storing `app_id`, `app_secret`, `auth_details`).
+*   **Post Meta Keys:** `_pti_instagram_shared_images`.
+*   **Attachment Meta Keys:** `_pti_instagram_status`, `_pti_instagram_media_id`.
+*   **Custom Post Type:** `pti_scheduled_ig_post`.
+*   **REST API Namespace:** `pti/v1`
+*   **Nonces:** (Examples for AJAX) `pti_save_app_creds_nonce`, `pti_disconnect_nonce`, `pti_post_media_nonce`, `pti_schedule_media_nonce`. (REST API uses `wp_rest` nonce via `apiFetch`).
+
+**5. Future Enhancements (Brief Mention - detailed in Project Plan)**
+
+*   AI-generated captions, single image posts, video/story support, advanced scheduling.
+
+---

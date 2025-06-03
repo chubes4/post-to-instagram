@@ -1,0 +1,17 @@
+{
+  "name": "post-to-instagram",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "wp-scripts build admin/assets/src/js/post-editor.js --output-path=admin/assets/js/",
+    "start": "wp-scripts start admin/assets/src/js/post-editor.js --output-path=admin/assets/js/",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@wordpress/scripts": "^30.7.0"
+  }
+}
