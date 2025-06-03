@@ -33,6 +33,12 @@ class PTI_Admin_UI {
             $script_asset['version']
         );
 
+        // Ensure all media scripts (including gallery) are loaded
+        if ( function_exists( 'wp_enqueue_media' ) ) {
+            wp_enqueue_media();
+        }
+        wp_enqueue_script('media-gallery');
+
         // Enqueue styles
         wp_enqueue_style(
             'pti-admin-styles',

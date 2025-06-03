@@ -91,4 +91,9 @@ The "Post to Instagram" plugin enables WordPress users to publish images from th
 **Contradictions/Redundancies:**
 - None currently found; all code and docs are in sync as of this update.
 
+**Recurring Issue: Media Modal Filtering**
+- The media modal's `library` query does **not** support the `include` parameter (unlike direct REST API queries). Attempting to use `include` in the modal config will break the modal, causing a perpetual loading spinner and JS errors (e.g., `t.call is not a function`).
+- The correct, WordPress-native approach is to open the modal with all images and use a custom filter (AttachmentFilters) to restrict the view to only images in the current post, setting this filter as the default if desired.
+- This is how the core Gallery block and other native features handle image filtering in the media modal.
+
 ---

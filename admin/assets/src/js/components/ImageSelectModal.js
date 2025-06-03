@@ -8,13 +8,13 @@ const getImageIdsFromBlocks = () => {
         let ids = [];
         blocks.forEach(block => {
             if (block.name === 'core/image' && block.attributes && block.attributes.id) {
-                ids.push(block.attributes.id);
+                ids.push(Number(block.attributes.id));
             }
             if (block.name === 'core/gallery' && block.attributes && Array.isArray(block.attributes.ids)) {
-                ids = ids.concat(block.attributes.ids);
+                ids = ids.concat(block.attributes.ids.map(Number));
             }
         });
-        return Array.from(new Set(ids.map(Number)));
+        return Array.from(new Set(ids));
     } catch (e) {
         return null;
     }
@@ -39,16 +39,64 @@ const ImageSelectModal = ({ selectedImages, setSelectedImages, postId, onClose }
             mediaFrameRef.current.open();
             return;
         }
+
+        // Custom AttachmentFilters view
+        const AttachmentFilters = window.wp.media.view.AttachmentFilters.extend({
+            createFilters: function() {
+                this.filters = {
+                    in_this_post: {
+                        text: __('Images in this Post', 'post-to-instagram'),
+                        props: {
+                            type: 'image',
+                            uploadedTo: null, // show all images, filter in filterAttachments
+                        },
+                        priority: 100
+                    }
+                };
+            },
+            change: function(event) {
+                var filter = this.filters[this.el.value];
+                if (filter) {
+                    this.model.set(filter.props);
+                }
+                this.model.trigger('change');
+            },
+            filterAttachments: function(attachments) {
+                // Only show attachments whose ID is in allowedIds
+                return attachments.filter(att => allowedIds.includes(Number(att.id)));
+            }
+        });
+
         const frame = wp.media({
-            title: __('Select Images for Instagram', 'post-to-instagram'),
+            frame: 'post',
+            state: 'gallery',
+            title: __('Create gallery', 'post-to-instagram'),
+            multiple: true,
             library: {
                 type: 'image',
-                query: allowedIds.length ? { include: allowedIds } : {},
             },
-            multiple: true,
             button: { text: __('Select', 'post-to-instagram') },
         });
         mediaFrameRef.current = frame;
+
+        frame.on('ready', () => {
+            const state = frame.state();
+            // Remove all existing filters and add our custom one
+            state.filters = new AttachmentFilters({
+                controller: frame,
+                model: state,
+                priority: 100
+            });
+            state.filters.render();
+            // Set default filter
+            state.set('filter', 'in_this_post');
+            // Insert the filter dropdown into the toolbar
+            const toolbar = state.toolbar;
+            if (toolbar && toolbar.$el && state.filters.$el) {
+                toolbar.$el.find('.media-toolbar-primary').prepend(state.filters.$el);
+            }
+        });
+
         frame.on('select', () => {
             const selection = frame.state().get('selection');
             const images = selection.toArray().slice(0, 10).map(att => ({
@@ -79,6 +127,7 @@ const ImageSelectModal = ({ selectedImages, setSelectedImages, postId, onClose }
                 mediaFrameRef.current.off('select');
                 mediaFrameRef.current.off('open');
                 mediaFrameRef.current.off('close');
+                mediaFrameRef.current.off('ready');
                 mediaFrameRef.current = null;
             }
         };
