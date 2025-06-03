@@ -43,8 +43,7 @@ const ImageSelectModal = ({ selectedImages, setSelectedImages, postId, onClose }
             title: __('Select Images for Instagram', 'post-to-instagram'),
             library: {
                 type: 'image',
-                // Custom filter: only show images in allowedIds
-                filter: (attachment) => allowedIds.includes(attachment.id),
+                query: allowedIds.length ? { include: allowedIds } : {},
             },
             multiple: true,
             button: { text: __('Select', 'post-to-instagram') },

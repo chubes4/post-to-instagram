@@ -5,6 +5,31 @@ alwaysApply: false
 ---
 **Project Plan: Post to Instagram WordPress Plugin**
 
+**Date:** [Update to today's date]
+
+**High Priority:**
+1. Implement ImagePreviewModal (gallery modal for previewing/navigating selected images, aspect-ratio thumbnails, keyboard navigation).
+2. Add captioning UI and integrate with posting logic.
+3. Implement posting logic: upload images to Instagram, create carousel, publish, handle errors.
+
+**Medium Priority:**
+1. Image tracking & metadata: store and display which images have been shared/scheduled.
+2. Scheduling UI: allow user to schedule posts, save as CPT, and WP Cron integration.
+3. Admin view for scheduled posts (CPT list table).
+
+**Low Priority:**
+1. Advanced scheduling options, AI-generated captions, video/story support, bulk actions.
+
+**Known Bugs:**
+- None currently tracked; all major blockers resolved as of this update.
+
+**Ideas:**
+- Open source launch checklist, developer hooks/filters, extensibility for other social platforms.
+
+---
+
+**Project Plan: Post to Instagram WordPress Plugin**
+
 **Date:** [Current Date]
 
 **High Priority:**
