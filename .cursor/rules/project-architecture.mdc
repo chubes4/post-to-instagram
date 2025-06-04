@@ -96,4 +96,11 @@ The "Post to Instagram" plugin enables WordPress users to publish images from th
 - The correct, WordPress-native approach is to open the modal with all images and use a custom filter (AttachmentFilters) to restrict the view to only images in the current post, setting this filter as the default if desired.
 - This is how the core Gallery block and other native features handle image filtering in the media modal.
 
+**Image Selection Modal (Canonical Approach)**
+- The plugin uses a custom React modal (`CustomImageSelectModal`) for image selection, not the WordPress media modal.
+- This modal fetches image data for all images used in the post (core/image, core/gallery, featured/classic fallback) via the REST API and displays them in a WordPress-native UI.
+- Users can multi-select up to 10 images, which are then previewed and reordered in the sidebar.
+- The old `ImageSelectModal` and all media modal hacks are deprecated and removed for clarity and maintainability.
+- All code should reference only `CustomImageSelectModal` for image selection.
+
 ---

@@ -4,8 +4,10 @@ import { __ } from '@wordpress/i18n';
 import { PanelBody, Button } from '@wordpress/components';
 import { Fragment, useState, useEffect, useRef } from '@wordpress/element';
 import AuthPanel from './components/AuthPanel';
-import ImageSelectModal from './components/ImageSelectModal';
+import CustomImageSelectModal from './components/CustomImageSelectModal';
 import ReorderableImageList from './components/ReorderableImageList';
+import { getPostImageIds } from './utils/getPostImageIds';
+import { createNotice } from '@wordpress/notices';
 
 const PTI_ICON = 'instagram'; // Placeholder, can be replaced with a custom SVG icon component
 
@@ -30,6 +32,10 @@ const PostToInstagramPluginSidebar = () => {
     const [selectedImages, setSelectedImages] = useState([]);
     const [showImageModal, setShowImageModal] = useState(false);
     const [previewIndex, setPreviewIndex] = useState(null);
+    const [allowedIds, setAllowedIds] = useState([]);
+    const [caption, setCaption] = useState('');
+    const [posting, setPosting] = useState(false);
+    const [disconnecting, setDisconnecting] = useState(false);
 
     // Calculate aspect ratio of the first image
     const aspectRatio = selectedImages.length > 0 && selectedImages[0].url && selectedImages[0].id
@@ -141,8 +147,62 @@ const PostToInstagramPluginSidebar = () => {
         checkAuthStatus();
     }, []); // Empty dependency array ensures this runs only once on mount
 
-    // Handler to open the WP media modal for image selection
-    const openMediaModal = () => setShowImageModal(true);
+    // Handler to open the custom image modal for image selection
+    const openMediaModal = () => {
+        setAllowedIds(getPostImageIds());
+        setShowImageModal(true);
+    };
+
+    // Handler for Post Now
+    const handlePostNow = async () => {
+        if (!selectedImages.length) return;
+        setPosting(true);
+        try {
+            const response = await wp.apiFetch({
+                path: '/pti/v1/post-now',
+                method: 'POST',
+                data: {
+                    post_id: postId,
+                    image_ids: selectedImages.map(img => img.id),
+                    caption,
+                    _wpnonce: pti_data.nonce_post_media, // Localized in PHP
+                },
+            });
+            setPosting(false);
+            if (response && response.success) {
+                setSelectedImages([]);
+                setCaption('');
+                wp.data.dispatch('core/notices').createNotice('success', __('Posted to Instagram successfully!', 'post-to-instagram'), { isDismissible: true });
+            } else {
+                wp.data.dispatch('core/notices').createNotice('error', response && response.message ? response.message : __('Failed to post to Instagram.', 'post-to-instagram'), { isDismissible: true });
+            }
+        } catch (e) {
+            setPosting(false);
+            wp.data.dispatch('core/notices').createNotice('error', __('Error posting to Instagram.', 'post-to-instagram'), { isDismissible: true });
+        }
+    };
+
+    const handleDisconnect = async () => {
+        if (!window.confirm(i18n.disconnect_instagram || 'Disconnect Instagram Account?')) return;
+        setDisconnecting(true);
+        try {
+            const response = await wp.apiFetch({
+                path: '/pti/v1/disconnect',
+                method: 'POST',
+                data: { _wpnonce: pti_data.nonce_disconnect },
+            });
+            setDisconnecting(false);
+            if (response && response.success) {
+                wp.data.dispatch('core/notices').createNotice('success', i18n.disconnected || 'Account disconnected.', { isDismissible: true });
+                checkAuthStatus();
+            } else {
+                wp.data.dispatch('core/notices').createNotice('error', response && response.message ? response.message : (i18n.error_disconnecting || 'Error disconnecting account.'), { isDismissible: true });
+            }
+        } catch (e) {
+            setDisconnecting(false);
+            wp.data.dispatch('core/notices').createNotice('error', i18n.error_disconnecting || 'Error disconnecting account.', { isDismissible: true });
+        }
+    };
 
     let panelContent;
 
@@ -182,7 +242,7 @@ const PostToInstagramPluginSidebar = () => {
                     {i18n.select_images || 'Select Images'}
                 </Button>
                 {/* Cropping notice */}
-                <div style={{ margin: '8px 0', color: '#b26a00', fontSize: 12 }}>
+                <div className="pti-cropping-notice">
                     {__("All images will be cropped to match the aspect ratio of the first image in your selection, per Instagram's requirements.", 'post-to-instagram')}
                 </div>
                 {/* Drag-and-drop reordering and preview */}
@@ -192,22 +252,42 @@ const PostToInstagramPluginSidebar = () => {
                     aspectRatio={aspectRatio}
                     onPreview={handlePreview}
                 />
+                {/* Caption input, only show if images are selected */}
+                {selectedImages.length > 0 && (
+                    <div className="pti-caption-box">
+                        <label className="pti-caption-label">
+                            {__('Instagram Caption', 'post-to-instagram')}
+                        </label>
+                        <textarea
+                            className="pti-caption-input"
+                            value={caption}
+                            onChange={e => setCaption(e.target.value)}
+                            rows={4}
+                            placeholder={__('Write your Instagram caption here...', 'post-to-instagram')}
+                        />
+                        {/* Post Now / Schedule Post buttons */}
+                        <div className="pti-post-actions">
+                            <Button isPrimary onClick={handlePostNow} disabled={posting}>
+                                {posting ? __('Posting...', 'post-to-instagram') : __('Post Now', 'post-to-instagram')}
+                            </Button>
+                            <Button isSecondary>{__('Schedule Post', 'post-to-instagram')}</Button>
+                        </div>
+                    </div>
+                )}
                 {/* Placeholder for ImagePreviewModal */}
                 {previewIndex !== null && (
-                    <div style={{ marginTop: 12, color: '#888' }}>
+                    <div className="pti-preview-placeholder">
                         {__('(Image preview modal coming soon)', 'post-to-instagram')}
                     </div>
                 )}
-                <Button isSecondary onClick={() => alert('Disconnect TBD')} style={{ marginLeft: 8 }}>
-                    {i18n.disconnect_instagram || 'Disconnect'}
-                </Button>
-                {/* ImageSelectModal is rendered conditionally */}
+                {/* CustomImageSelectModal is rendered conditionally */}
                 {showImageModal && (
-                    <ImageSelectModal
+                    <CustomImageSelectModal
+                        allowedIds={allowedIds}
                         selectedImages={selectedImages}
                         setSelectedImages={setSelectedImages}
-                        postId={postId}
                         onClose={() => setShowImageModal(false)}
+                        maxSelect={10}
                     />
                 )}
             </Fragment>
@@ -230,6 +310,12 @@ const PostToInstagramPluginSidebar = () => {
                 <PanelBody>
                     {panelContent}
                 </PanelBody>
+                {/* Move Disconnect button to the bottom of the sidebar */}
+                <div className="pti-disconnect-bottom">
+                    <Button isSecondary onClick={handleDisconnect} disabled={disconnecting}>
+                        {disconnecting ? __('Disconnecting...', 'post-to-instagram') : (i18n.disconnect_instagram || 'Disconnect')}
+                    </Button>
+                </div>
             </PluginSidebar>
         </Fragment>
     );

@@ -11,6 +11,7 @@ alwaysApply: false
 1. Implement ImagePreviewModal (gallery modal for previewing/navigating selected images, aspect-ratio thumbnails, keyboard navigation).
 2. Add captioning UI and integrate with posting logic.
 3. Implement posting logic: upload images to Instagram, create carousel, publish, handle errors.
+4. Ensure all image selection uses the canonical CustomImageSelectModal and remove all references to the old modal or media modal hacks.
 
 **Medium Priority:**
 1. Image tracking & metadata: store and display which images have been shared/scheduled.
