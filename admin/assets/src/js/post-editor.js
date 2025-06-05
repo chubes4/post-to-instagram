@@ -20,7 +20,8 @@ const PostToInstagramPluginSidebar = () => {
         i18n,
         auth_redirect_status,
         app_id: initialAppId,
-        post_id: postId
+        post_id: postId,
+        username: initialUsername
     } = pti_data;
 
     const [isConfigured, setIsConfigured] = useState(initialIsConfigured);
@@ -36,6 +37,7 @@ const PostToInstagramPluginSidebar = () => {
     const [caption, setCaption] = useState('');
     const [posting, setPosting] = useState(false);
     const [disconnecting, setDisconnecting] = useState(false);
+    const [username, setUsername] = useState(initialUsername || null);
 
     // Calculate aspect ratio of the first image
     const aspectRatio = selectedImages.length > 0 && selectedImages[0].url && selectedImages[0].id
@@ -63,6 +65,7 @@ const PostToInstagramPluginSidebar = () => {
             setIsAuthenticated(data.is_authenticated);
             setAuthUrl(data.auth_url || '#');
             setSavedAppId(data.app_id || '');
+            setUsername(data.username || null);
             setIsLoading(false);
             if (showAlerts && data.is_authenticated) {
                 // For better UX, consider using WordPress notices:
@@ -310,12 +313,19 @@ const PostToInstagramPluginSidebar = () => {
                 <PanelBody>
                     {panelContent}
                 </PanelBody>
-                {/* Move Disconnect button to the bottom of the sidebar */}
+                {/* Move Disconnect button to the bottom of the sidebar, only if authenticated */}
+                {isAuthenticated && (
                 <div className="pti-disconnect-bottom">
+                        {username && (
+                            <div className="pti-account-info" style={{ marginBottom: 8, color: '#666', fontSize: 'smaller' }}>
+                                {__('Connected Instagram account:', 'post-to-instagram')} <strong>@{username}</strong>
+                            </div>
+                        )}
                     <Button isSecondary onClick={handleDisconnect} disabled={disconnecting}>
                         {disconnecting ? __('Disconnecting...', 'post-to-instagram') : (i18n.disconnect_instagram || 'Disconnect')}
                     </Button>
                 </div>
+                )}
             </PluginSidebar>
         </Fragment>
     );

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Instagram OAuth Handler</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; margin-top: 60px; }
+    .success { color: green; }
+    .error { color: red; }
+  </style>
+</head>
+<body>
+  <h2 id="status-message">Processing authentication...</h2>
+  <script>
+    // Parse query params
+    function getQueryParam(name) {
+      const url = new URL(window.location.href);
+      return url.searchParams.get(name);
+    }
+    const status = getQueryParam('pti_auth_status');
+    const error = getQueryParam('pti_auth_error');
+    let message = '';
+    let isSuccess = false;
+    if (status === 'success') {
+      message = 'Authentication successful! You can close this window.';
+      isSuccess = true;
+    } else {
+      message = 'Authentication failed.' + (error ? ' (' + error + ')' : '') + ' You can close this window and try again.';
+    }
+    document.getElementById('status-message').textContent = message;
+    document.getElementById('status-message').className = isSuccess ? 'success' : 'error';
+    // Send postMessage to opener
+    if (window.opener) {
+      window.opener.postMessage({
+        source: 'pti-instagram-oauth',
+        status: isSuccess ? 'success' : 'error',
+        error: error || null
+      }, '*');
+      setTimeout(() => window.close(), 500);
+    }
+  </script>
+</body>
+</html> 

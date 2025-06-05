@@ -87,12 +87,12 @@ const AuthPanel = ({
                     __nextHasNoMarginBottom={true}
                 />
                 <p style={{ fontSize: 'smaller', color: '#666', marginTop: 0 }}>
-                    {__('For security, the App Secret is never shown. Please re-enter it to update your credentials.', 'post-to-instagram')}
+                    {__('For security, the App Secret is never shown. Leave blank to keep the current secret.', 'post-to-instagram')}
                 </p>
                 <Button
                     isPrimary
                     type="submit"
-                    disabled={saving || !appId || !appSecret || loadingAppId}
+                    disabled={saving || !appId || loadingAppId}
                 >
                     {i18n.save_credentials || 'Save Credentials'}
                 </Button>
