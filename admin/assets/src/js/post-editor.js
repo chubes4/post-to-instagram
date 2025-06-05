@@ -1,6 +1,6 @@
-import { registerPlugin } from '@wordpress/plugins';
-import { PluginSidebar, PluginSidebarMoreMenuItem } from '@wordpress/editor'; // Corrected import
 import { __ } from '@wordpress/i18n';
+import { registerPlugin } from '@wordpress/plugins';
+import { PluginSidebar, PluginSidebarMoreMenuItem } from '@wordpress/plugins';
 import { PanelBody, Button } from '@wordpress/components';
 import { Fragment, useState, useEffect, useRef } from '@wordpress/element';
 import AuthPanel from './components/AuthPanel';
@@ -174,6 +174,29 @@ const PostToInstagramPluginSidebar = () => {
     const openMediaModal = () => {
         setAllowedIds(getPostImageIds());
         setShowImageModal(true);
+    };
+
+    // Handler for disconnecting Instagram account
+    const handleDisconnect = async () => {
+        if (!window.confirm(i18n.disconnect_instagram || 'Disconnect Instagram Account?')) return;
+        setDisconnecting(true);
+        try {
+            const response = await wp.apiFetch({
+                path: '/pti/v1/disconnect',
+                method: 'POST',
+                data: { _wpnonce: pti_data.nonce_disconnect },
+            });
+            setDisconnecting(false);
+            if (response && response.success) {
+                wp.data.dispatch('core/notices').createNotice('success', i18n.disconnected || 'Account disconnected.', { isDismissible: true });
+                checkAuthStatus();
+            } else {
+                wp.data.dispatch('core/notices').createNotice('error', response && response.message ? response.message : (i18n.error_disconnecting || 'Error disconnecting account.'), { isDismissible: true });
+            }
+        } catch (e) {
+            setDisconnecting(false);
+            wp.data.dispatch('core/notices').createNotice('error', i18n.error_disconnecting || 'Error disconnecting account.', { isDismissible: true });
+        }
     };
 
     let panelContent;

@@ -1,4 +1,5 @@
 import { useRef } from '@wordpress/element';
+import { __ } from '@wordpress/i18n';
 
 const getAspectRatioStyle = (aspectRatio) => ({
     width: 48,

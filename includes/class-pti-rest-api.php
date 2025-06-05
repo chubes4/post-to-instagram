@@ -45,17 +45,17 @@ class PTI_REST_API {
             '/post-now',
             array(
                 'methods'             => WP_REST_Server::CREATABLE,
-                'callback'            => array( $this, 'post_now' ),
+                'callback'            => array( $this, 'handle_post_now_proxy' ),
                 'permission_callback' => function() { return current_user_can( 'edit_posts' ); },
                 'args'                => array(
                     'post_id' => array(
                         'required' => true,
                         'type' => 'integer',
                     ),
-                    'image_ids' => array(
+                    'image_urls' => array(
                         'required' => true,
                         'type' => 'array',
-                        'items' => array('type' => 'integer'),
+                        'items' => array('type' => 'string'),
                     ),
                     'caption' => array(
                         'required' => false,
@@ -127,45 +127,6 @@ class PTI_REST_API {
         }
         pti_update_option( 'auth_details', array() ); // Clear old auth details
         return new WP_REST_Response( array( 'success' => true, 'message' => __( 'Credentials saved.', 'post-to-instagram' ) ), 200 );
-    }
-
-    public function post_now( $request ) {
-        // Nonce check
-        if ( ! wp_verify_nonce( $request['_wpnonce'], 'pti_post_media_nonce' ) ) {
-            return new WP_Error( 'invalid_nonce', __( 'Invalid nonce.', 'post-to-instagram' ), array( 'status' => 403 ) );
-        }
-        // Permission check
-        if ( ! current_user_can( 'edit_posts' ) ) {
-            return new WP_Error( 'forbidden', __( 'You do not have permission to post.', 'post-to-instagram' ), array( 'status' => 403 ) );
-        }
-        $post_id = intval( $request['post_id'] );
-        $image_ids = array_map( 'intval', (array) $request['image_ids'] );
-        $caption = sanitize_text_field( $request['caption'] );
-        // Log incoming REST request
-        error_log('[PTI DEBUG] REST /post-now called: post_id=' . $post_id . ' | image_ids=' . json_encode($image_ids) . ' | caption=' . $caption);
-        // Call Instagram posting logic
-        if ( ! class_exists( 'PTI_Instagram_API' ) ) {
-            require_once PTI_PLUGIN_DIR . 'includes/class-instagram-api.php';
-        }
-        $result = PTI_Instagram_API::post_now( $post_id, $image_ids, $caption );
-        if ( isset($result['success']) && $result['success'] ) {
-            return new WP_REST_Response( array(
-                'success' => true,
-                'message' => $result['permalink'] ? __('Posted to Instagram! View post: ', 'post-to-instagram') . $result['permalink'] : __( 'Posted to Instagram successfully.', 'post-to-instagram' ),
-                'response' => isset($result['response']) ? $result['response'] : null,
-                'permalink' => isset($result['permalink']) ? $result['permalink'] : null,
-                'media_id' => isset($result['media_id']) ? $result['media_id'] : null,
-                'warning' => isset($result['warning']) ? $result['warning'] : null,
-            ), 200 );
-        }
-        return new WP_REST_Response( array(
-            'success' => false,
-            'message' => isset($result['message']) ? $result['message'] : __( 'Failed to post to Instagram.', 'post-to-instagram' ),
-            'response' => isset($result['response']) ? $result['response'] : null,
-            'permalink' => isset($result['permalink']) ? $result['permalink'] : null,
-            'media_id' => isset($result['media_id']) ? $result['media_id'] : null,
-            'warning' => isset($result['warning']) ? $result['warning'] : null,
-        ), 500 );
     }
 
     public function disconnect_account( $request ) {
@@ -262,11 +223,9 @@ class PTI_REST_API {
 
     // This is a proxy to the (new) actual posting logic, perhaps in the main plugin file or a dedicated class
     public function handle_post_now_proxy( WP_REST_Request $request ) {
-        $post_id = $request->get_param( 'id' );
-        // $image_ids = $request->get_param( 'image_ids' ); // Old parameter
-        $image_urls = $request->get_param( 'image_urls' ); // New parameter: array of URLs
+        $post_id = $request->get_param( 'post_id' );
+        $image_urls = $request->get_param( 'image_urls' );
         $caption = $request->get_param( 'caption' );
-        // $nonce = $request->get_param('_wpnonce'); // Nonce is typically checked by WP REST API itself via permission_callback or can be re-checked here if needed.
 
         if ( empty( $post_id ) || empty( $image_urls ) ) {
             return new WP_Error(
@@ -287,75 +246,23 @@ class PTI_REST_API {
             }
         }
 
-        // Here, you would typically call your main function/method that handles the Instagram API interaction.
-        // This function would now accept $image_urls instead of $image_ids.
-        // For example:
-        // $result = your_instagram_posting_function( $post_id, $image_urls, $caption );
-
-        // Placeholder for the actual posting logic which is assumed to be elsewhere
-        // and is now expected to use the $image_urls directly with the Instagram API.
-        // The PTI_Instagram_API class or similar should be updated to take these URLs.
-
-        // --- Example of what the called function might do ---
-        // (This is illustrative; actual implementation depends on your Instagram API handler class)
-        /*
-        if (class_exists('PTI_Instagram_API')) {
-            $instagram_api = new PTI_Instagram_API(); // Or get instance
-            try {
-                $media_ids_or_container_ids = [];
-                foreach ($image_urls as $url) {
-                    // Step 1: Create media item container for each image URL
-                    $item_container_id = $instagram_api->create_media_item_container($url, $caption); // caption might be for carousel or first item
-                    if (!$item_container_id) {
-                        throw new Exception(sprintf(__( 'Failed to create media container for image: %s', 'post-to-instagram' ), $url));
-                    }
-                    $media_ids_or_container_ids[] = $item_container_id;
-                }
-
-                $final_media_id = null;
-                if (count($media_ids_or_container_ids) === 1) {
-                    // Single image post
-                    $final_media_id = $instagram_api->publish_media_container($media_ids_or_container_ids[0]);
-                } elseif (count($media_ids_or_container_ids) > 1) {
-                    // Carousel post
-                    $carousel_container_id = $instagram_api->create_carousel_container($media_ids_or_container_ids, $caption);
-                    $final_media_id = $instagram_api->publish_media_container($carousel_container_id);
-                }
-
-                if ($final_media_id) {
-                     // Fetch permalink if possible (new function in PTI_Instagram_API)
-                    $permalink = $instagram_api->get_media_permalink($final_media_id);
-                    return new WP_REST_Response(array(
-                        'success' => true, 
-                        'message' => __( 'Posted to Instagram successfully!', 'post-to-instagram' ), 
-                        'media_id' => $final_media_id,
-                        'permalink' => $permalink
-                    ), 200);
-                } else {
-                    throw new Exception(__( 'Failed to publish media to Instagram.', 'post-to-instagram' ));
-                }
-
-            } catch (Exception $e) {
-                // Log error: error_log('PTI Post Error: ' . $e->getMessage());
-                return new WP_Error('pti_instagram_error', $e->getMessage(), array('status' => 500));
+        // Call the actual Instagram posting logic using URLs
+        if ( class_exists('PTI_Instagram_API') ) {
+            $result = PTI_Instagram_API::post_now_with_urls( $post_id, $image_urls, $caption );
+            if ( isset($result['success']) && $result['success'] ) {
+                return new WP_REST_Response( array(
+                    'success' => true,
+                    'message' => $result['message'],
+                    'permalink' => isset($result['permalink']) ? $result['permalink'] : null,
+                    'media_id' => isset($result['media_id']) ? $result['media_id'] : null,
+                    'warning' => isset($result['warning']) ? $result['warning'] : null,
+                    'response' => isset($result['response']) ? $result['response'] : null,
+                ), 200 );
+            } else {
+                return new WP_Error('pti_instagram_error', $result['message'] ?? 'Failed to post to Instagram.', array('status' => 500));
             }
         } else {
             return new WP_Error('pti_api_class_missing', 'PTI_Instagram_API class not found.', array('status' => 500));
-        }
-        */
-        // --- End Example ---
-        
-        // For now, returning a placeholder success as the actual posting logic is external to this file.
-        // IMPORTANT: Replace this with actual call to your posting logic.
-        if ( true /* Replace with actual success condition from your posting logic */ ) {
-             return new WP_REST_Response( array(
-                'success' => true, 
-                'message' => __( 'Request received. Posting logic should use image URLs.', 'post-to-instagram' ),
-                // 'media_id' => $final_media_id, // from actual posting
-                // 'permalink' => $permalink // from actual posting
-            ), 200 );
-        } else {
-            return new WP_Error('pti_placeholder_error', __('Posting logic not fully implemented here.','post-to-instagram'), array( 'status' => 500 ));
         }
     }
 } 

@@ -7,13 +7,13 @@ require_once PTI_PLUGIN_DIR . 'includes/convert-to-jpg.php';
 
 class PTI_Instagram_API {
     /**
-     * Post images to Instagram (single or carousel)
+     * Post images to Instagram using direct URLs (already-cropped, already-JPEG)
      * @param int $post_id
-     * @param array $image_ids
+     * @param array $image_urls
      * @param string $caption
      * @return array [ 'success' => bool, 'message' => string ]
      */
-    public static function post_now( $post_id, $image_ids, $caption = '' ) {
+    public static function post_now_with_urls( $post_id, $image_urls, $caption = '' ) {
         if ( ! class_exists( 'PTI_Auth_Handler' ) ) {
             require_once PTI_PLUGIN_DIR . 'auth/class-auth-handler.php';
         }
@@ -23,34 +23,22 @@ class PTI_Instagram_API {
             return array( 'success' => false, 'message' => 'Instagram account not authenticated.' );
         }
         $container_ids = array();
-        $temp_files = array();
-        foreach ( $image_ids as $id ) {
-            $jpeg = pti_convert_to_jpg_if_needed( $id );
-            if ( ! $jpeg || empty( $jpeg['url'] ) ) {
-                // Cleanup any temp files created so far
-                foreach ( $temp_files as $file ) { pti_cleanup_temp_jpg( $file ); }
-                return array( 'success' => false, 'message' => 'Could not get JPEG for image ID ' . $id );
-            }
-            if ( $jpeg['temp_file'] ) {
-                $temp_files[] = $jpeg['temp_file'];
-            }
-            // Step 1: Create media container for this image
+        foreach ( $image_urls as $url ) {
+            // Step 1: Create media container for this image (assume JPEG, already public)
             $response = wp_remote_post( "https://graph.instagram.com/{$user_id}/media", array(
                 'body' => array(
-                    'image_url' => $jpeg['url'],
+                    'image_url' => $url,
                     'is_carousel_item' => 'true',
                     'access_token' => $access_token,
                 ),
                 'timeout' => 20,
             ) );
             if ( is_wp_error( $response ) ) {
-                foreach ( $temp_files as $file ) { pti_cleanup_temp_jpg( $file ); }
                 return array( 'success' => false, 'message' => 'Error creating media container: ' . $response->get_error_message() );
             }
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
             if ( empty( $body['id'] ) ) {
-                error_log('[PTI DEBUG] No container ID returned for image. Image URL: ' . $jpeg['url'] . ' | Response: ' . wp_remote_retrieve_body( $response ));
-                foreach ( $temp_files as $file ) { pti_cleanup_temp_jpg( $file ); }
+                error_log('[PTI DEBUG] No container ID returned for image. Image URL: ' . $url . ' | Response: ' . wp_remote_retrieve_body( $response ));
                 return array( 'success' => false, 'message' => 'No container ID returned for image.' );
             }
             $container_id = $body['id'];
@@ -63,7 +51,6 @@ class PTI_Instagram_API {
                     'timeout' => 20,
                 ) );
                 if ( is_wp_error( $status_resp ) ) {
-                    foreach ( $temp_files as $file ) { pti_cleanup_temp_jpg( $file ); }
                     return array( 'success' => false, 'message' => 'Error polling container status: ' . $status_resp->get_error_message() );
                 }
                 $status_body = json_decode( wp_remote_retrieve_body( $status_resp ), true );
@@ -71,14 +58,12 @@ class PTI_Instagram_API {
                     $status = $status_body['status_code'];
                     if ( $status === 'FINISHED' ) break;
                     if ( $status === 'ERROR' || $status === 'EXPIRED' ) {
-                        foreach ( $temp_files as $file ) { pti_cleanup_temp_jpg( $file ); }
                         return array( 'success' => false, 'message' => 'Container status error: ' . $status );
                     }
                 }
                 $tries++;
             }
             if ( $status !== 'FINISHED' ) {
-                foreach ( $temp_files as $file ) { pti_cleanup_temp_jpg( $file ); }
                 return array( 'success' => false, 'message' => 'Timeout waiting for container to finish.' );
             }
             $container_ids[] = $container_id;
@@ -97,19 +82,16 @@ class PTI_Instagram_API {
                 'timeout' => 20,
             ) );
             if ( is_wp_error( $carousel_resp ) ) {
-                foreach ( $temp_files as $file ) { pti_cleanup_temp_jpg( $file ); }
                 return array( 'success' => false, 'message' => 'Error creating carousel container: ' . $carousel_resp->get_error_message() );
             }
             $carousel_body = json_decode( wp_remote_retrieve_body( $carousel_resp ), true );
             if ( empty( $carousel_body['id'] ) ) {
-                foreach ( $temp_files as $file ) { pti_cleanup_temp_jpg( $file ); }
                 return array( 'success' => false, 'message' => 'No carousel container ID returned.' );
             }
             $main_container_id = $carousel_body['id'];
         } else if ( count( $container_ids ) === 1 ) {
             $main_container_id = $container_ids[0];
         } else {
-            foreach ( $temp_files as $file ) { pti_cleanup_temp_jpg( $file ); }
             return array( 'success' => false, 'message' => 'No valid images to post.' );
         }
         // Step 3: Publish the container
@@ -120,7 +102,6 @@ class PTI_Instagram_API {
             ),
             'timeout' => 20,
         ) );
-        foreach ( $temp_files as $file ) { pti_cleanup_temp_jpg( $file ); }
         if ( is_wp_error( $publish_resp ) ) {
             return array( 'success' => false, 'message' => 'Error publishing to Instagram: ' . $publish_resp->get_error_message() );
         }
@@ -137,14 +118,14 @@ class PTI_Instagram_API {
             $permalink_body = json_decode(wp_remote_retrieve_body($permalink_resp), true);
             $permalink = isset($permalink_body['permalink']) ? $permalink_body['permalink'] : null;
         }
-        // Track published images in post meta
+        // Track published images in post meta (store URLs instead of attachment IDs)
         $shared = get_post_meta($post_id, '_pti_instagram_shared_images', true);
         if (!is_array($shared)) $shared = array();
-        $existing_ids = array_column($shared, 'attachment_id');
-        foreach ($image_ids as $id) {
-            if (!in_array($id, $existing_ids)) {
+        $existing_urls = array_column($shared, 'image_url');
+        foreach ($image_urls as $url) {
+            if (!in_array($url, $existing_urls)) {
                 $shared[] = array(
-                    'attachment_id' => $id,
+                    'image_url' => $url,
                     'instagram_media_id' => $media_id,
                     'timestamp' => time(),
                     'permalink' => $permalink,
