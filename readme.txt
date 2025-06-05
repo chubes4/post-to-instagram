@@ -9,12 +9,13 @@ License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 == Description ==
-A modern, modular, and open-source WordPress plugin to post images from your posts directly to Instagram. Seamlessly integrates with the block editor, supports multi-image carousels, drag-and-drop reordering, and secure OAuth authentication. Built for maintainability, WordPress-native UX, and open source collaboration.
+A modern, modular, and open-source WordPress plugin to post images from your posts directly to Instagram. Seamlessly integrates with the block editor, supports multi-image carousels, drag-and-drop reordering, cropping, and secure OAuth authentication. Built for maintainability, WordPress-native UX, and open source collaboration.
 
 == Features ==
 * Connect your WordPress site to Instagram using secure OAuth 2.0
 * Select images from your post content or featured image (block editor aware)
 * Drag-and-drop reordering of images for Instagram carousels (up to 10 images, API limit)
+* Crop images to Instagram-compliant aspect ratios before posting
 * WordPress-native UI and modals for a seamless experience
 * Modular, React-based codebase ready for open source
 * (Planned) Captioning, scheduling, and image tracking
@@ -29,11 +30,12 @@ A modern, modular, and open-source WordPress plugin to post images from your pos
 == Usage ==
 1. In the post editor, open the "Post to Instagram" sidebar.
 2. If not configured, enter your Instagram App ID/Secret and connect.
-3. Click "Select Images for Instagram" to open the media modal.
+3. Click "Select Images for Instagram" to open the image selection modal.
 4. Choose up to 10 images from your post content or featured image.
 5. Drag and drop to reorder images as desired.
-6. (Planned) Add a caption and choose to post now or schedule.
-7. Click "Post Now" to publish to Instagram (coming soon).
+6. Crop images to the required aspect ratio.
+7. Add a caption.
+8. Click "Post Now" to publish to Instagram.
 
 == Requirements ==
 * WordPress 5.0 or higher
@@ -48,21 +50,20 @@ Only images in your post content (core/image or core/gallery blocks) or set as t
 Instagram's API currently limits carousels to 10 images per post.
 
 = What happens if my images have different aspect ratios? =
-Instagram will crop all images in a carousel to match the aspect ratio of the first image. A cropping notice is displayed in the plugin UI.
+Instagram will crop all images in a carousel to match the aspect ratio of the first image. The plugin provides a cropping modal to ensure compliance.
 
 = How do I get an Instagram App ID and Secret? =
 You must create a Facebook Developer App, add the Instagram Graph API, and configure a valid OAuth redirect URI (see plugin settings for details).
 
 == Changelog ==
 = 1.0.0 =
-* Initial release: OAuth authentication, image selection modal, drag-and-drop reordering, modular React UI, block editor integration.
+* Initial release: OAuth authentication, image selection modal, drag-and-drop reordering, cropping, modular React UI, block editor integration.
 
 == License ==
 This plugin is free software, licensed under GPLv2 or later.
 
 == Credits ==
-Developed by [your-name or org].
-Contributions welcome! See CONTRIBUTING.md for guidelines.
+Developed by Chris Huber (https://chubes.net).
 
 == Support ==
-For issues, feature requests, or contributions, visit the GitHub repository: https://github.com/[your-github-username]/post-to-instagram 
+For issues or feature requests, visit the GitHub repository: https://github.com/chubes4/post-to-instagram 
