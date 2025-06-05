@@ -12,6 +12,12 @@
   "license": "ISC",
   "description": "",
   "devDependencies": {
-    "@wordpress/scripts": "^30.7.0"
+    "@wordpress/scripts": "^30.7.0",
+    "react-dom": "^18.2.0",
+    "react-easy-crop": "^5.4.2",
+    "webpack": "^5.88.2"
+  },
+  "dependencies": {
+    "@wordpress/icons": "^10.25.0"
   }
 }

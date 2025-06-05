@@ -6,6 +6,7 @@ import { Fragment, useState, useEffect, useRef } from '@wordpress/element';
 import AuthPanel from './components/AuthPanel';
 import CustomImageSelectModal from './components/CustomImageSelectModal';
 import ReorderableImageList from './components/ReorderableImageList';
+import CropImageModal from './components/CropImageModal';
 import { getPostImageIds } from './utils/getPostImageIds';
 import { createNotice } from '@wordpress/notices';
 
@@ -39,6 +40,9 @@ const PostToInstagramPluginSidebar = () => {
     const [disconnecting, setDisconnecting] = useState(false);
     const [username, setUsername] = useState(initialUsername || null);
 
+    // State for the new multi-image cropping modal
+    const [showMultiCropModal, setShowMultiCropModal] = useState(false);
+
     // Calculate aspect ratio of the first image
     const aspectRatio = selectedImages.length > 0 && selectedImages[0].url && selectedImages[0].id
         ? (() => {
@@ -52,6 +56,22 @@ const PostToInstagramPluginSidebar = () => {
 
     const handlePreview = (index) => setPreviewIndex(index);
     const closePreview = () => setPreviewIndex(null);
+
+    // This function will be called from the crop modal upon successful posting
+    const handlePostComplete = () => {
+        setShowMultiCropModal(false);
+        setSelectedImages([]);
+        setCaption('');
+        // We could also pass a message or data from the modal if needed
+    };
+
+    // Handler for Post Now - now opens the cropping modal
+    const handlePostNow = async () => {
+        if (!selectedImages.length) return;
+        
+        // Aspect ratio validation is now handled inside the cropping modal
+        setShowMultiCropModal(true);
+    };
 
     // Function to check authentication status via REST API
     const checkAuthStatus = (showAlerts = false) => {
@@ -156,57 +176,6 @@ const PostToInstagramPluginSidebar = () => {
         setShowImageModal(true);
     };
 
-    // Handler for Post Now
-    const handlePostNow = async () => {
-        if (!selectedImages.length) return;
-        setPosting(true);
-        try {
-            const response = await wp.apiFetch({
-                path: '/pti/v1/post-now',
-                method: 'POST',
-                data: {
-                    post_id: postId,
-                    image_ids: selectedImages.map(img => img.id),
-                    caption,
-                    _wpnonce: pti_data.nonce_post_media, // Localized in PHP
-                },
-            });
-            setPosting(false);
-            if (response && response.success) {
-                setSelectedImages([]);
-                setCaption('');
-                wp.data.dispatch('core/notices').createNotice('success', __('Posted to Instagram successfully!', 'post-to-instagram'), { isDismissible: true });
-            } else {
-                wp.data.dispatch('core/notices').createNotice('error', response && response.message ? response.message : __('Failed to post to Instagram.', 'post-to-instagram'), { isDismissible: true });
-            }
-        } catch (e) {
-            setPosting(false);
-            wp.data.dispatch('core/notices').createNotice('error', __('Error posting to Instagram.', 'post-to-instagram'), { isDismissible: true });
-        }
-    };
-
-    const handleDisconnect = async () => {
-        if (!window.confirm(i18n.disconnect_instagram || 'Disconnect Instagram Account?')) return;
-        setDisconnecting(true);
-        try {
-            const response = await wp.apiFetch({
-                path: '/pti/v1/disconnect',
-                method: 'POST',
-                data: { _wpnonce: pti_data.nonce_disconnect },
-            });
-            setDisconnecting(false);
-            if (response && response.success) {
-                wp.data.dispatch('core/notices').createNotice('success', i18n.disconnected || 'Account disconnected.', { isDismissible: true });
-                checkAuthStatus();
-            } else {
-                wp.data.dispatch('core/notices').createNotice('error', response && response.message ? response.message : (i18n.error_disconnecting || 'Error disconnecting account.'), { isDismissible: true });
-            }
-        } catch (e) {
-            setDisconnecting(false);
-            wp.data.dispatch('core/notices').createNotice('error', i18n.error_disconnecting || 'Error disconnecting account.', { isDismissible: true });
-        }
-    };
-
     let panelContent;
 
     if (isLoading) {
@@ -291,6 +260,17 @@ const PostToInstagramPluginSidebar = () => {
                         setSelectedImages={setSelectedImages}
                         onClose={() => setShowImageModal(false)}
                         maxSelect={10}
+                    />
+                )}
+                {/* Render the NEW Multi-Image Crop Modal conditionally */}
+                {showMultiCropModal && (
+                    <CropImageModal
+                        images={selectedImages}
+                        caption={caption}
+                        postId={postId}
+                        onClose={() => setShowMultiCropModal(false)}
+                        onPostComplete={handlePostComplete}
+                        // The rest of the logic is now self-contained within CropImageModal
                     />
                 )}
             </Fragment>

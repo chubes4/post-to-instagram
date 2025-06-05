@@ -83,7 +83,7 @@ class PTI_Instagram_API {
             }
             $container_ids[] = $container_id;
         }
-        // Step 2: Create carousel container
+        // Step 2: Create carousel container if needed
         $main_container_id = null;
         if ( count( $container_ids ) > 1 ) {
             $children = implode( ',', $container_ids );
@@ -128,6 +128,15 @@ class PTI_Instagram_API {
         if ( empty( $publish_body['id'] ) ) {
             return array( 'success' => false, 'message' => 'No media ID returned after publishing.' );
         }
+        $media_id = $publish_body['id'];
+        // Fetch permalink for the new media (remove status_code from fields)
+        $permalink_url = "https://graph.instagram.com/{$media_id}?fields=id,permalink,caption,media_type,media_url,thumbnail_url,timestamp,username&access_token={$access_token}";
+        $permalink_resp = wp_remote_get($permalink_url, array('timeout' => 20));
+        $permalink = null;
+        if ( !is_wp_error($permalink_resp) ) {
+            $permalink_body = json_decode(wp_remote_retrieve_body($permalink_resp), true);
+            $permalink = isset($permalink_body['permalink']) ? $permalink_body['permalink'] : null;
+        }
         // Track published images in post meta
         $shared = get_post_meta($post_id, '_pti_instagram_shared_images', true);
         if (!is_array($shared)) $shared = array();
@@ -136,12 +145,23 @@ class PTI_Instagram_API {
             if (!in_array($id, $existing_ids)) {
                 $shared[] = array(
                     'attachment_id' => $id,
-                    'instagram_media_id' => $publish_body['id'],
+                    'instagram_media_id' => $media_id,
                     'timestamp' => time(),
+                    'permalink' => $permalink,
                 );
             }
         }
         update_post_meta($post_id, '_pti_instagram_shared_images', $shared);
-        return array( 'success' => true, 'message' => 'Posted to Instagram. Media ID: ' . $publish_body['id'] );
+        $result = array(
+            'success' => true,
+            'message' => $permalink ? 'Posted to Instagram. View post: ' . $permalink : 'Posted to Instagram. Media ID: ' . $media_id . ' (no permalink found)',
+            'response' => $publish_body,
+            'permalink' => $permalink,
+            'media_id' => $media_id,
+        );
+        if (!$permalink) {
+            $result['warning'] = 'No permalink returned from Instagram.';
+        }
+        return $result;
     }
 } 
