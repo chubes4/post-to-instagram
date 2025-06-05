@@ -1,6 +1,6 @@
 import { __ } from '@wordpress/i18n';
 import { registerPlugin } from '@wordpress/plugins';
-import { PluginSidebar, PluginSidebarMoreMenuItem } from '@wordpress/plugins';
+import { PluginSidebar, PluginSidebarMoreMenuItem } from '@wordpress/edit-post';
 import { PanelBody, Button } from '@wordpress/components';
 import { Fragment, useState, useEffect, useRef } from '@wordpress/element';
 import AuthPanel from './components/AuthPanel';
