@@ -1,2 +1,14 @@
-node_modules
-node_modules
+# Node modules
+node_modules/
+
+# Build output
+/dist/
+
+# Cursor AI and documentation
+.cursor/
+
+# macOS system files
+.DS_Store
+
+# Ignore plugin build artifacts
+*.zip
