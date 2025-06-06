@@ -45,12 +45,16 @@ const PostToInstagramPluginSidebar = () => {
     const [posting, setPosting] = useState(false);
     // State for the new multi-image cropping modal
     const [showMultiCropModal, setShowMultiCropModal] = useState(false);
+    // State to trigger a refresh in the ScheduledPosts component
+    const [refreshKey, setRefreshKey] = useState(0);
 
     // This function will be called from the crop modal upon successful posting
     const handlePostComplete = () => {
         setShowMultiCropModal(false);
         setSelectedImages([]);
         setCaption('');
+        // Increment the key to trigger a refresh in the child component
+        setRefreshKey(k => k + 1);
     };
 
     // Handler for Post Now - now opens the cropping modal
@@ -93,6 +97,7 @@ const PostToInstagramPluginSidebar = () => {
             handlePostComplete={handlePostComplete}
             setShowImageModal={setShowImageModal}
             setShowMultiCropModal={setShowMultiCropModal}
+            refreshKey={refreshKey}
         />
     );
 

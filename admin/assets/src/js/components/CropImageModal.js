@@ -331,92 +331,91 @@ const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostCom
 
     return (
         <Modal
-            title={__('Review, Crop & Post', 'post-to-instagram')}
+            title={__('Review, Reorder & Crop', 'post-to-instagram')}
             onRequestClose={onClose}
-            className="pti-crop-modal"
-            size="large"
-            actions={[
-                !showScheduleForm && (
-                    <div key="modal-actions-default" className="pti-modal-actions">
-                        <Button variant="secondary" onClick={onClose} disabled={isProcessing}>
+            shouldCloseOnClickOutside={false}
+            className="pti-multi-crop-modal pti-multi-crop-modal--tall"
+        >
+            <div className="pti-multi-crop-main-content">
+                <div className="pti-crop-controls-header">
+                    <SelectControl
+                        label={__('Aspect Ratio', 'post-to-instagram')}
+                        value={aspectRatio}
+                        options={aspectRatios}
+                        onChange={handleAspectRatioChange}
+                        help={__('Applies to all images.', 'post-to-instagram')}
+                        __nextHasNoMarginBottom
+                        __next40pxDefaultSize={true}
+                    />
+                     <div className="pti-crop-navigation-info">
+                        <span>{`${__('Image', 'post-to-instagram')} ${currentIndex + 1} / ${images.length}`}</span>
+                    </div>
+                </div>
+
+                {showScheduleForm ? (
+                    <div className="pti-schedule-form">
+                        <h3>{__('Select Schedule Time', 'post-to-instagram')}</h3>
+                        <DateTimePicker
+                            currentDate={scheduleDateTime}
+                            onChange={(newDate) => setScheduleDateTime(newDate)}
+                            is12Hour={true}
+                        />
+                    </div>
+                ) : (
+                    <div className="pti-crop-container" style={{ position: 'relative', height: 440, width: '100%', background: '#333', marginTop: 8 }}>
+                        <Cropper
+                            image={currentImage.originalUrl || currentImage.url}
+                            crop={crop}
+                            zoom={zoom}
+                            rotation={rotation}
+                            aspect={aspectRatio}
+                            onCropChange={onCropChange}
+                            onZoomChange={onZoomChange}
+                            onCropComplete={onCropFull}
+                        />
+                    </div>
+                )}
+
+
+                 <ReorderableThumbnails
+                    images={images}
+                    currentIndex={currentIndex}
+                    onSelect={selectImage}
+                    onReorder={handleReorder}
+                />
+            </div>
+             {isProcessing && (
+                 <div className="pti-processing-overlay">
+                    <Spinner />
+                    <p>{processingMessage}</p>
+                </div>
+            )}
+
+            <div className="pti-multi-crop-footer">
+                 {!showScheduleForm ? (
+                    <>
+                        <Button isSecondary onClick={onClose} disabled={isProcessing}>
                             {__('Cancel', 'post-to-instagram')}
                         </Button>
                         <div style={{ flex: 1 }} />
-                        <Button variant="secondary" onClick={() => setShowScheduleForm(true)} disabled={isProcessing}>
+                        <Button isSecondary onClick={() => setShowScheduleForm(true)} disabled={isProcessing}>
                             {__('Schedule Post', 'post-to-instagram')}
                         </Button>
-                        <Button variant="primary" onClick={handleConfirmAndPost} disabled={isProcessing}>
-                            {__('Post Now', 'post-to-instagram')}
+                        <Button isPrimary onClick={handleConfirmAndPost} disabled={isProcessing || images.length === 0}>
+                            {isProcessing ? __('Posting...', 'post-to-instagram') : __('Post Now', 'post-to-instagram')}
                         </Button>
-                    </div>
-                ),
-                showScheduleForm && (
-                     <div key="modal-actions-schedule" className="pti-modal-actions">
-                         <Button variant="secondary" onClick={() => setShowScheduleForm(false)} disabled={isProcessing}>
-                            {__('Back', 'post-to-instagram')}
-                        </Button>
-                        <div style={{ flex: 1 }} />
-                         <Button variant="primary" onClick={handleConfirmAndSchedule} disabled={isProcessing}>
-                            {__('Confirm Schedule', 'post-to-instagram')}
-                        </Button>
-                    </div>
-                )
-            ]}
-        >
-            <div className="pti-crop-main-area">
-                {isProcessing ? (
-                    <div className="pti-processing-overlay">
-                        <Spinner />
-                        <p>{processingMessage}</p>
-                    </div>
+                    </>
                 ) : (
                     <>
-                        {showScheduleForm ? (
-                            <div className="pti-schedule-form">
-                                <h3>{__('Select Schedule Time', 'post-to-instagram')}</h3>
-                                <DateTimePicker
-                                    currentDate={scheduleDateTime}
-                                    onChange={(newDate) => setScheduleDateTime(newDate)}
-                                    is12Hour={true}
-                                />
-                            </div>
-                        ) : (
-                            <div className="pti-cropper-wrapper">
-                                <SelectControl
-                                    label={__('Aspect Ratio', 'post-to-instagram')}
-                                    value={aspectRatio}
-                                    options={aspectRatios}
-                                    onChange={handleAspectRatioChange}
-                                    help={__('Applies to all images.', 'post-to-instagram')}
-                                />
-                                <div className="pti-crop-container">
-                                    <Cropper
-                                        image={currentImage?.url}
-                                        crop={crop}
-                                        zoom={zoom}
-                                        rotation={rotation}
-                                        aspect={aspectRatio}
-                                        onCropChange={onCropChange}
-                                        onZoomChange={onZoomChange}
-                                        onCropComplete={onCropFull}
-                                    />
-                                </div>
-                            </div>
-                        )}
-                    </>
+                        <Button isSecondary onClick={() => setShowScheduleForm(false)} disabled={isProcessing}>
+                           {__('Back', 'post-to-instagram')}
+                       </Button>
+                       <div style={{ flex: 1 }} />
+                        <Button isPrimary onClick={handleConfirmAndSchedule} disabled={isProcessing}>
+                           {__('Confirm Schedule', 'post-to-instagram')}
+                       </Button>
+                   </>
                 )}
-            </div>
-            <div className="pti-crop-footer">
-                <ReorderableThumbnails
-                     images={images}
-                     currentIndex={currentIndex}
-                     onSelect={selectImage}
-                     onReorder={handleReorder}
-                 />
-                 <div className="pti-crop-navigation-info">
-                    <span>{`${__('Image', 'post-to-instagram')} ${currentIndex + 1} / ${images.length}`}</span>
-                    <p>{__('Click to select, drag to reorder.', 'post-to-instagram')}</p>
-                 </div>
             </div>
         </Modal>
     );
