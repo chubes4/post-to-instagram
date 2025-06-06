@@ -3,7 +3,7 @@
 if ( ! defined( 'WPINC' ) ) {
     die;
 }
-require_once PTI_PLUGIN_DIR . 'includes/convert-to-jpg.php';
+// require_once PTI_PLUGIN_DIR . 'includes/convert-to-jpg.php';
 
 class PTI_Instagram_API {
     /**
@@ -11,9 +11,10 @@ class PTI_Instagram_API {
      * @param int $post_id
      * @param array $image_urls
      * @param string $caption
+     * @param array $image_ids
      * @return array [ 'success' => bool, 'message' => string ]
      */
-    public static function post_now_with_urls( $post_id, $image_urls, $caption = '' ) {
+    public static function post_now_with_urls( $post_id, $image_urls, $caption = '', $image_ids = array() ) {
         if ( ! class_exists( 'PTI_Auth_Handler' ) ) {
             require_once PTI_PLUGIN_DIR . 'auth/class-auth-handler.php';
         }
@@ -118,14 +119,15 @@ class PTI_Instagram_API {
             $permalink_body = json_decode(wp_remote_retrieve_body($permalink_resp), true);
             $permalink = isset($permalink_body['permalink']) ? $permalink_body['permalink'] : null;
         }
-        // Track published images in post meta (store URLs instead of attachment IDs)
+        // Track published images in post meta (store original attachment IDs)
         $shared = get_post_meta($post_id, '_pti_instagram_shared_images', true);
         if (!is_array($shared)) $shared = array();
-        $existing_urls = array_column($shared, 'image_url');
-        foreach ($image_urls as $url) {
-            if (!in_array($url, $existing_urls)) {
+        $existing_ids = array_column($shared, 'image_id');
+        
+        foreach ($image_ids as $id) {
+            if (!in_array($id, $existing_ids)) {
                 $shared[] = array(
-                    'image_url' => $url,
+                    'image_id' => $id,
                     'instagram_media_id' => $media_id,
                     'timestamp' => time(),
                     'permalink' => $permalink,

@@ -56,13 +56,17 @@ const CustomImageSelectModal = ({
     };
 
     const handleSelect = () => {
-        const selectedImgs = images.filter(img => selected.includes(img.id)).map(img => ({
-            id: img.id,
-            url: img.source_url,
-            alt: img.alt_text,
-            width: img.media_details?.width,
-            height: img.media_details?.height,
-        }));
+        const selectedImgs = selected.map(id => {
+            const img = images.find(i => i.id === id);
+            return {
+                id: img.id,
+                url: img.source_url,
+                originalUrl: img.source_url, // For the cropper
+                alt: img.alt_text,
+                width: img.media_details?.width,
+                height: img.media_details?.height,
+            };
+        });
         setSelectedImages(selectedImgs);
         if (onClose) onClose();
     };

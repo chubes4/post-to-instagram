@@ -1,18 +1,17 @@
 import { useState, useCallback, useEffect, useRef } from '@wordpress/element';
-import { Modal, Button, SelectControl, Flex, FlexItem, Spinner, Icon } from '@wordpress/components';
+import { Modal, Button, SelectControl, Spinner } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from './utils/cropImage';
-import { chevronLeft, chevronRight } from '@wordpress/icons';
 
 const aspectRatios = [
     { label: __('Square (1:1)', 'post-to-instagram'), value: 1 / 1 },
     { label: __('Portrait (4:5)', 'post-to-instagram'), value: 4 / 5 },
     { label: __('Landscape (1.91:1)', 'post-to-instagram'), value: 1.91 / 1 },
-    { label: __('3:4', 'post-to-instagram'), value: 3 / 4 },
 ];
 
 function findClosestAspectRatio(ratio) {
+    if (!ratio) return aspectRatios[0].value;
     let closest = aspectRatios[0].value;
     let minDiff = Math.abs(ratio - closest);
     for (let i = 1; i < aspectRatios.length; i++) {
@@ -27,9 +26,58 @@ function findClosestAspectRatio(ratio) {
 
 const DEFAULT_ASPECT = 1;
 
-const CropImageModal = ({ images, caption, postId, onClose, onPostComplete }) => {
+const ReorderableThumbnails = ({ images, currentIndex, onSelect, onReorder }) => {
+    const dragItem = useRef();
+    const dragOverItem = useRef();
+
+    const handleDragStart = (index) => {
+        dragItem.current = index;
+    };
+    const handleDragEnter = (index) => {
+        dragOverItem.current = index;
+    };
+    const handleDragEnd = () => {
+        const from = dragItem.current;
+        const to = dragOverItem.current;
+        if (from === undefined || to === undefined || from === to) return;
+        
+        const updated = [...images];
+        const [moved] = updated.splice(from, 1);
+        updated.splice(to, 0, moved);
+        
+        onReorder(updated, from, to);
+
+        dragItem.current = undefined;
+        dragOverItem.current = undefined;
+    };
+
+    return (
+        <div className="pti-reorderable-thumbnails">
+            {images.map((img, i) => (
+                <div
+                    key={img.id || `reorder-${i}`}
+                    className={`pti-thumbnail-item ${i === currentIndex ? 'is-current' : ''}`}
+                    draggable
+                    onDragStart={() => handleDragStart(i)}
+                    onDragEnter={() => handleDragEnter(i)}
+                    onDragEnd={handleDragEnd}
+                    onClick={() => onSelect(i)}
+                    title={__('Click to select, drag to reorder.', 'post-to-instagram')}
+                >
+                    <img
+                        src={img.url}
+                        alt={img.alt || ''}
+                    />
+                     <div className="pti-thumbnail-order">{i + 1}</div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostComplete }) => {
     const [currentIndex, setCurrentIndex] = useState(0);
-    const [aspectRatio, setAspectRatio] = useState(DEFAULT_ASPECT); // The shared aspect ratio
+    const [aspectRatio, setAspectRatio] = useState(DEFAULT_ASPECT);
     const [imageCropData, setImageCropData] = useState([]); 
     const [crop, setCrop] = useState({ x: 0, y: 0 });
     const [zoom, setZoom] = useState(1);
@@ -48,24 +96,16 @@ const CropImageModal = ({ images, caption, postId, onClose, onPostComplete }) =>
         }
     }, [images]);
 
-    // Initialize crop data for all images on mount or when aspectRatio changes
+    // Initialize or re-initialize crop data for all images when they change
     useEffect(() => {
-        setImageCropData(prev => {
-            // If prev exists, update aspect only, preserve crop/zoom if possible
-            if (prev.length === images.length) {
-                return prev.map(data => ({
-                    ...data,
-                    aspect: aspectRatio,
-                }));
-            }
-            // Otherwise, initialize
-            return images.map(img => ({
+        setImageCropData(
+            images.map(img => ({
                 crop: { x: 0, y: 0 },
                 zoom: 1,
                 aspect: aspectRatio,
                 croppedAreaPixels: null,
-            }));
-        });
+            }))
+        );
     }, [images, aspectRatio]);
 
     // When currentIndex changes, restore crop/zoom for that image
@@ -85,14 +125,15 @@ const CropImageModal = ({ images, caption, postId, onClose, onPostComplete }) =>
     }, []);
 
     const onCropFull = useCallback((croppedArea, croppedAreaPixels) => {
+        // This is called on every interaction. We update the state for the current image.
         setImageCropData(prev => {
             const newData = [...prev];
             if (newData[currentIndex]) {
                 newData[currentIndex] = {
                     ...newData[currentIndex],
                     croppedAreaPixels,
-                    crop,
-                    zoom,
+                    crop, // last known crop
+                    zoom, // last known zoom
                 };
             }
             return newData;
@@ -102,31 +143,45 @@ const CropImageModal = ({ images, caption, postId, onClose, onPostComplete }) =>
     const handleAspectRatioChange = (newAspect) => {
         const newAspectValue = parseFloat(newAspect);
         setAspectRatio(newAspectValue);
-        // All images' aspect is updated in useEffect above, crop/zoom is preserved
-    };
-
-    const navigate = (direction) => {
-        // Save current crop/zoom before navigating
-        setImageCropData(prev => {
-            const newData = [...prev];
-            if (newData[currentIndex]) {
-                newData[currentIndex] = {
-                    ...newData[currentIndex],
-                    crop,
-                    zoom,
-                };
-            }
-            return newData;
-        });
-        const newIndex = currentIndex + direction;
-        if (newIndex >= 0 && newIndex < images.length) {
-            setCurrentIndex(newIndex);
-        }
+        // Crop data will be re-initialized by the useEffect watching `aspectRatio`
     };
 
     const selectImage = (index) => {
         if (index === currentIndex) return;
-        navigate(index - currentIndex);
+
+        // Save current crop data before switching
+        setImageCropData(prev => {
+            const newData = [...prev];
+            if (newData[currentIndex]) {
+                newData[currentIndex] = { ...newData[currentIndex], crop, zoom };
+            }
+            return newData;
+        });
+        setCurrentIndex(index);
+    };
+    
+    const handleReorder = (newImageList, from, to) => {
+        // Update the parent component's state
+        setImages(newImageList);
+    
+        // Also reorder the crop data to match
+        setImageCropData(prevCropData => {
+            const newCropData = [...prevCropData];
+            const [movedCropData] = newCropData.splice(from, 1);
+            newCropData.splice(to, 0, movedCropData);
+            return newCropData;
+        });
+
+        // If the currently selected item was moved, update the index to follow it
+        if (currentIndex === from) {
+            setCurrentIndex(to);
+        } else if (currentIndex >= to && currentIndex < from) {
+            // It was before the moved item and got shifted down
+            setCurrentIndex(currentIndex + 1);
+        } else if (currentIndex <= to && currentIndex > from) {
+            // It was after the moved item and got shifted up
+            setCurrentIndex(currentIndex - 1);
+        }
     };
 
     const getDefaultCroppedAreaPixels = (img, aspect) => {
@@ -155,48 +210,62 @@ const CropImageModal = ({ images, caption, postId, onClose, onPostComplete }) =>
         try {
             const tempUrls = [];
             for (let i = 0; i < images.length; i++) {
-                setProcessingMessage(`${__('Cropping and uploading image', 'post-to-instagram')} ${i + 1}/${images.length}...`);
+                setProcessingMessage(`${__('Processing image', 'post-to-instagram')} ${i + 1}/${images.length}...`);
+                
                 const img = images[i];
                 const cropData = imageCropData[i];
                 let croppedAreaPixels = cropData.croppedAreaPixels;
+
+                // If an image was never viewed/interacted with, its croppedAreaPixels might be null.
+                // We must calculate a default crop for it.
                 if (!croppedAreaPixels) {
-                    // Calculate default crop
                     croppedAreaPixels = getDefaultCroppedAreaPixels(img, aspectRatio);
                 }
+
                 const croppedBlob = await getCroppedImg(img.originalUrl || img.url, croppedAreaPixels, rotation);
+
                 const formData = new FormData();
                 const fileName = 'cropped-' + (img.url.split('/').pop() || 'image.jpg');
                 formData.append('cropped_image', croppedBlob, fileName);
+
                 const response = await wp.apiFetch({
                     path: '/pti/v1/upload-cropped-image',
                     method: 'POST',
                     body: formData,
                 });
+
                 if (!response.success || !response.url) {
                     throw new Error(response.message || `Failed to upload image ${i + 1}.`);
                 }
                 tempUrls.push(response.url);
             }
+
             setProcessingMessage(__('Finalizing post with Instagram...', 'post-to-instagram'));
+
             const postResponse = await wp.apiFetch({
                 path: '/pti/v1/post-now',
                 method: 'POST',
                 data: {
                     post_id: postId,
                     image_urls: tempUrls,
+                    image_ids: images.map(img => img.id),
                     caption,
                     _wpnonce: pti_data.nonce_post_media,
                 },
             });
+
             if (!postResponse.success) {
                 throw new Error(postResponse.message || __('Failed to post to Instagram.', 'post-to-instagram'));
             }
+
             let successMsg = postResponse.message || __('Posted successfully!', 'post-to-instagram');
             if (postResponse.permalink) {
                 successMsg = `${__('Posted to Instagram!', 'post-to-instagram')} <a href="${postResponse.permalink}" target="_blank" rel="noopener noreferrer">${__('View post', 'post-to-instagram')}</a>`;
             }
+            
             wp.data.dispatch('core/notices').createNotice('success', successMsg, { isDismissible: true, __unstableHTML: true });
             onPostComplete();
+
         } catch (error) {
             console.error('Error during posting process:', error);
             wp.data.dispatch('core/notices').createNotice('error', error.message, { isDismissible: true });
@@ -211,23 +280,25 @@ const CropImageModal = ({ images, caption, postId, onClose, onPostComplete }) =>
 
     return (
         <Modal
-            title={__('Crop Images & Post to Instagram', 'post-to-instagram')}
+            title={__('Review, Reorder & Crop', 'post-to-instagram')}
             onRequestClose={onClose}
             shouldCloseOnClickOutside={false}
             className="pti-multi-crop-modal pti-multi-crop-modal--tall"
         >
             <div className="pti-multi-crop-main-content">
-                {/* Aspect Ratio Dropdown above cropper */}
-                <div className="pti-crop-controls" style={{ borderBottom: 'none', paddingBottom: 0 }}>
+                <div className="pti-crop-controls-header">
                     <SelectControl
                         label={__('Aspect Ratio', 'post-to-instagram')}
                         value={aspectRatio}
                         options={aspectRatios}
                         onChange={handleAspectRatioChange}
-                        help={__('This will apply to all images. You can crop each image individually.', 'post-to-instagram')}
+                        help={__('Applies to all images.', 'post-to-instagram')}
                         __nextHasNoMarginBottom
                         __next40pxDefaultSize={true}
                     />
+                     <div className="pti-crop-navigation-info">
+                        <span>{`${__('Image', 'post-to-instagram')} ${currentIndex + 1} / ${images.length}`}</span>
+                    </div>
                 </div>
                 <div className="pti-crop-container" style={{ position: 'relative', height: 440, width: '100%', background: '#333', marginTop: 8 }}>
                     <Cropper
@@ -247,33 +318,25 @@ const CropImageModal = ({ images, caption, postId, onClose, onPostComplete }) =>
                         </div>
                     )}
                 </div>
-                <div className="pti-crop-controls" style={{ borderTop: 'none', borderBottom: '1px solid #ddd', marginTop: 0 }}>
-                    <Flex justify="space-between" align="center">
-                        <FlexItem className="pti-crop-navigation">
-                             <Button icon={chevronLeft} onClick={() => navigate(-1)} disabled={currentIndex === 0} aria-label={__('Previous Image', 'post-to-instagram')} />
-                             <span>{`${currentIndex + 1} / ${images.length}`}</span>
-                             <Button icon={chevronRight} onClick={() => navigate(1)} disabled={currentIndex === images.length - 1} aria-label={__('Next Image', 'post-to-instagram')}/>
-                        </FlexItem>
-                    </Flex>
-                </div>
-                <div className="pti-thumbnail-strip">
-                    {images.map((img, index) => (
-                        <div 
-                            key={img.id} 
-                            className={`pti-thumbnail-item ${index === currentIndex ? 'is-active' : ''}`}
-                            onClick={() => selectImage(index)}
-                        >
-                            <img src={img.url} alt={`Thumbnail for image ${index + 1}`} />
-                        </div>
-                    ))}
-                </div>
+
+                 <ReorderableThumbnails
+                    images={images}
+                    currentIndex={currentIndex}
+                    onSelect={selectImage}
+                    onReorder={handleReorder}
+                />
             </div>
+
             <div className="pti-multi-crop-footer">
                 <Button isSecondary onClick={onClose} disabled={isProcessing}>
                     {__('Cancel', 'post-to-instagram')}
                 </Button>
-                <Button isPrimary onClick={handleConfirmAndPost} disabled={isProcessing}>
-                    {isProcessing ? __('Posting...', 'post-to-instagram') : __('Confirm and Post to Instagram', 'post-to-instagram')}
+                <div style={{ flex: 1 }} /> {/* Spacer */}
+                <Button isSecondary disabled={true}>
+                    {__('Schedule Post', 'post-to-instagram')}
+                </Button>
+                <Button isPrimary onClick={handleConfirmAndPost} disabled={isProcessing || images.length === 0}>
+                    {isProcessing ? __('Posting...', 'post-to-instagram') : __('Post Now', 'post-to-instagram')}
                 </Button>
             </div>
         </Modal>

@@ -57,6 +57,11 @@ class PTI_REST_API {
                         'type' => 'array',
                         'items' => array('type' => 'string'),
                     ),
+                    'image_ids' => array(
+                        'required' => true,
+                        'type' => 'array',
+                        'items' => array('type' => 'integer'),
+                    ),
                     'caption' => array(
                         'required' => false,
                         'type' => 'string',
@@ -225,12 +230,13 @@ class PTI_REST_API {
     public function handle_post_now_proxy( WP_REST_Request $request ) {
         $post_id = $request->get_param( 'post_id' );
         $image_urls = $request->get_param( 'image_urls' );
+        $image_ids = $request->get_param( 'image_ids' );
         $caption = $request->get_param( 'caption' );
 
-        if ( empty( $post_id ) || empty( $image_urls ) ) {
+        if ( empty( $post_id ) || empty( $image_urls ) || empty( $image_ids ) ) {
             return new WP_Error(
                 'pti_missing_params',
-                __( 'Missing post ID or image URLs.', 'post-to-instagram' ),
+                __( 'Missing post ID, image URLs, or image IDs.', 'post-to-instagram' ),
                 array( 'status' => 400 )
             );
         }
@@ -248,7 +254,7 @@ class PTI_REST_API {
 
         // Call the actual Instagram posting logic using URLs
         if ( class_exists('PTI_Instagram_API') ) {
-            $result = PTI_Instagram_API::post_now_with_urls( $post_id, $image_urls, $caption );
+            $result = PTI_Instagram_API::post_now_with_urls( $post_id, $image_urls, $caption, $image_ids );
             if ( isset($result['success']) && $result['success'] ) {
                 return new WP_REST_Response( array(
                     'success' => true,
