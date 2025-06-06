@@ -100,6 +100,57 @@ class PTI_REST_API {
                 'permission_callback' => function() { return current_user_can( 'edit_posts' ); },
             )
         );
+
+        // Endpoint for scheduling a post
+        register_rest_route(
+            self::REST_API_NAMESPACE,
+            '/schedule-post',
+            array(
+                'methods'             => WP_REST_Server::CREATABLE,
+                'callback'            => array( $this, 'handle_schedule_post' ),
+                'permission_callback' => function() { return current_user_can( 'edit_posts' ); },
+                 'args'                => array(
+                    'post_id' => array(
+                        'required' => true,
+                        'type' => 'integer',
+                    ),
+                    'image_ids' => array(
+                        'required' => true,
+                        'type' => 'array',
+                        'items' => array('type' => 'integer'),
+                    ),
+                    'crop_data' => array(
+                        'required' => true,
+                        'type' => 'array'
+                    ),
+                    'caption' => array(
+                        'required' => false,
+                        'type' => 'string',
+                    ),
+                    'schedule_time' => array(
+                        'required' => true,
+                        'type' => 'string',
+                    ),
+                ),
+            )
+        );
+
+        // Endpoint for getting scheduled posts
+        register_rest_route(
+            self::REST_API_NAMESPACE,
+            '/scheduled-posts',
+            array(
+                'methods'             => WP_REST_Server::READABLE,
+                'callback'            => array( $this, 'handle_get_scheduled_posts' ),
+                'permission_callback' => function() { return current_user_can( 'edit_posts' ); },
+                'args'                => array(
+                    'post_id' => array(
+                        'required' => false,
+                        'type' => 'integer',
+                    ),
+                ),
+            )
+        );
     }
 
     public function get_auth_status( $request ) {
@@ -269,6 +320,67 @@ class PTI_REST_API {
             }
         } else {
             return new WP_Error('pti_api_class_missing', 'PTI_Instagram_API class not found.', array('status' => 500));
+        }
+    }
+
+    public function handle_schedule_post( WP_REST_Request $request ) {
+        $post_id = $request->get_param('post_id');
+        $params = $request->get_params();
+
+        $scheduled_posts = get_post_meta( $post_id, '_pti_instagram_scheduled_posts', true );
+        if ( ! is_array( $scheduled_posts ) ) {
+            $scheduled_posts = array();
+        }
+
+        $new_post = array(
+            'id'            => uniqid('pti_'),
+            'image_ids'     => $params['image_ids'],
+            'crop_data'     => $params['crop_data'],
+            'caption'       => $params['caption'],
+            'schedule_time' => $params['schedule_time'], // Expecting WP local time in a parsable format
+            'created_at'    => current_time('mysql'),
+            'status'        => 'pending',
+        );
+
+        $scheduled_posts[] = $new_post;
+
+        update_post_meta( $post_id, '_pti_instagram_scheduled_posts', $scheduled_posts );
+
+        return new WP_REST_Response( array( 'success' => true, 'scheduled_post' => $new_post ), 200 );
+    }
+
+    public function handle_get_scheduled_posts( WP_REST_Request $request ) {
+        $post_id = $request->get_param('post_id');
+
+        if ( ! empty( $post_id ) ) {
+            // Get scheduled posts for a specific post
+            $scheduled_posts = get_post_meta( $post_id, '_pti_instagram_scheduled_posts', true );
+            if ( ! is_array( $scheduled_posts ) ) {
+                $scheduled_posts = array();
+            }
+            return new WP_REST_Response( $scheduled_posts, 200 );
+        } else {
+            // Get all scheduled posts across all WP posts
+            global $wpdb;
+            $meta_key = '_pti_instagram_scheduled_posts';
+            // Important: This is a simplified query. A real-world scenario might need pagination
+            // and more robust serialization checks.
+            $results = $wpdb->get_results( $wpdb->prepare(
+                "SELECT post_id, meta_value FROM $wpdb->postmeta WHERE meta_key = %s",
+                $meta_key
+            ) );
+
+            $all_scheduled_posts = array();
+            foreach ( $results as $result ) {
+                $posts = maybe_unserialize( $result->meta_value );
+                if ( is_array( $posts ) ) {
+                    foreach ( $posts as &$post ) { // Add post_id to each scheduled item
+                        $post['parent_post_id'] = $result->post_id;
+                    }
+                    $all_scheduled_posts = array_merge( $all_scheduled_posts, $posts );
+                }
+            }
+            return new WP_REST_Response( $all_scheduled_posts, 200 );
         }
     }
 } 

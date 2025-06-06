@@ -15,9 +15,10 @@ A modern, modular, and open-source WordPress plugin to post images from your pos
 * Connect your WordPress site to Instagram using secure OAuth 2.0
 * Select images from your post content or featured image (block editor aware)
 * Drag-and-drop reordering of images for Instagram carousels (up to 10 images, API limit)
-* Crop images to Instagram-compliant aspect ratios before posting
+* Crop images to Instagram-compliant aspect ratios before posting (Square 1:1, Portrait 4:5, Classic 3:4, Landscape 1.91:1)
 * WordPress-native UI and modals for a seamless experience
 * Modular, React-based codebase ready for open source
+* Post scheduling with a robust WP-Cron-based system
 * (Planned) Captioning, scheduling, and image tracking
 
 == Installation ==
@@ -35,7 +36,7 @@ A modern, modular, and open-source WordPress plugin to post images from your pos
 5. Drag and drop to reorder images as desired.
 6. Crop images to the required aspect ratio.
 7. Add a caption.
-8. Click "Post Now" to publish to Instagram.
+8. Click "Post Now" to publish to Instagram, or "Schedule Post" to publish at a future date and time.
 
 == Requirements ==
 * WordPress 5.0 or higher
@@ -50,7 +51,7 @@ Only images in your post content (core/image or core/gallery blocks) or set as t
 Instagram's API currently limits carousels to 10 images per post.
 
 = What happens if my images have different aspect ratios? =
-Instagram will crop all images in a carousel to match the aspect ratio of the first image. The plugin provides a cropping modal to ensure compliance.
+Instagram will crop all images in a carousel to match the aspect ratio of the first image. The plugin provides a cropping modal to ensure compliance. Supported aspect ratios are: Square (1:1), Portrait (4:5), Classic (3:4), and Landscape (1.91:1).
 
 = How do I get an Instagram App ID and Secret? =
 You must create a Facebook Developer App, add the Instagram Graph API, and configure a valid OAuth redirect URI (see plugin settings for details).

@@ -58,6 +58,7 @@ function pti_deactivate_plugin() {
 	// Add any deactivation specific code here.
     // For example, remove options, unregister cron jobs.
     PTI_Temp_Cleanup::on_deactivation();
+    PTI_Scheduler::on_deactivation();
 }
 register_deactivation_hook( PTI_PLUGIN_FILE, 'pti_deactivate_plugin' );
 
@@ -105,6 +106,7 @@ function pti_init_plugin() {
         new PTI_Admin_UI();
     }
     new PTI_Temp_Cleanup();
+    new PTI_Scheduler();
 }
 add_action( 'plugins_loaded', 'pti_init_plugin' );
 

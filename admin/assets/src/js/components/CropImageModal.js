@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from '@wordpress/element';
-import { Modal, Button, SelectControl, Spinner } from '@wordpress/components';
+import { Modal, Button, SelectControl, Spinner, DateTimePicker } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from './utils/cropImage';
@@ -7,6 +7,7 @@ import { getCroppedImg } from './utils/cropImage';
 const aspectRatios = [
     { label: __('Square (1:1)', 'post-to-instagram'), value: 1 / 1 },
     { label: __('Portrait (4:5)', 'post-to-instagram'), value: 4 / 5 },
+    { label: __('Classic (3:4)', 'post-to-instagram'), value: 3 / 4 },
     { label: __('Landscape (1.91:1)', 'post-to-instagram'), value: 1.91 / 1 },
 ];
 
@@ -84,6 +85,8 @@ const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostCom
     const [rotation, setRotation] = useState(0);
     const [isProcessing, setIsProcessing] = useState(false);
     const [processingMessage, setProcessingMessage] = useState('');
+    const [showScheduleForm, setShowScheduleForm] = useState(false);
+    const [scheduleDateTime, setScheduleDateTime] = useState(new Date());
     const currentImage = images[currentIndex];
 
     // On mount, set aspect ratio to closest to first image's ratio
@@ -216,8 +219,6 @@ const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostCom
                 const cropData = imageCropData[i];
                 let croppedAreaPixels = cropData.croppedAreaPixels;
 
-                // If an image was never viewed/interacted with, its croppedAreaPixels might be null.
-                // We must calculate a default crop for it.
                 if (!croppedAreaPixels) {
                     croppedAreaPixels = getDefaultCroppedAreaPixels(img, aspectRatio);
                 }
@@ -242,35 +243,85 @@ const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostCom
 
             setProcessingMessage(__('Finalizing post with Instagram...', 'post-to-instagram'));
 
+            const imageIds = images.map(img => img.id);
+
             const postResponse = await wp.apiFetch({
                 path: '/pti/v1/post-now',
                 method: 'POST',
                 data: {
                     post_id: postId,
                     image_urls: tempUrls,
-                    image_ids: images.map(img => img.id),
-                    caption,
-                    _wpnonce: pti_data.nonce_post_media,
+                    image_ids: imageIds,
+                    caption: caption,
                 },
             });
 
             if (!postResponse.success) {
-                throw new Error(postResponse.message || __('Failed to post to Instagram.', 'post-to-instagram'));
+                throw new Error(postResponse.message || 'Failed to post to Instagram.');
             }
 
-            let successMsg = postResponse.message || __('Posted successfully!', 'post-to-instagram');
-            if (postResponse.permalink) {
-                successMsg = `${__('Posted to Instagram!', 'post-to-instagram')} <a href="${postResponse.permalink}" target="_blank" rel="noopener noreferrer">${__('View post', 'post-to-instagram')}</a>`;
-            }
-            
-            wp.data.dispatch('core/notices').createNotice('success', successMsg, { isDismissible: true, __unstableHTML: true });
+            setProcessingMessage(__('Successfully posted to Instagram!', 'post-to-instagram'));
             onPostComplete();
+            setTimeout(onClose, 1000);
 
         } catch (error) {
-            console.error('Error during posting process:', error);
-            wp.data.dispatch('core/notices').createNotice('error', error.message, { isDismissible: true });
             setIsProcessing(false);
-            setProcessingMessage('');
+            alert(__('Error posting to Instagram:', 'post-to-instagram') + ' ' + error.message);
+        }
+    };
+
+    const handleConfirmAndSchedule = async () => {
+        setIsProcessing(true);
+        try {
+            const finalCropData = [];
+            const imageIds = images.map(img => img.id);
+
+            for (let i = 0; i < images.length; i++) {
+                setProcessingMessage(`${__('Processing image', 'post-to-instagram')} ${i + 1}/${images.length}...`);
+                
+                const img = images[i];
+                const cropData = imageCropData[i];
+                let croppedAreaPixels = cropData.croppedAreaPixels;
+
+                if (!croppedAreaPixels) {
+                    croppedAreaPixels = getDefaultCroppedAreaPixels(img, aspectRatio);
+                }
+
+                finalCropData.push({
+                    image_id: img.id,
+                    aspect_ratio: aspectRatio,
+                    crop: cropData.crop,
+                    zoom: cropData.zoom,
+                    croppedAreaPixels: croppedAreaPixels
+                });
+            }
+
+            setProcessingMessage(__('Scheduling post...', 'post-to-instagram'));
+
+            const scheduleResponse = await wp.apiFetch({
+                path: '/pti/v1/schedule-post',
+                method: 'POST',
+                data: {
+                    post_id: postId,
+                    image_ids: imageIds,
+                    crop_data: finalCropData,
+                    caption: caption,
+                    schedule_time: scheduleDateTime,
+                },
+            });
+
+            if (!scheduleResponse.success) {
+                throw new Error(scheduleResponse.message || 'Failed to schedule post.');
+            }
+
+            // Success
+            setProcessingMessage(__('Post successfully scheduled!', 'post-to-instagram'));
+            onPostComplete(); // Notify parent to refresh data
+            setTimeout(onClose, 1000); // Close modal after a short delay
+
+        } catch (error) {
+            setIsProcessing(false);
+            alert(__('Error scheduling post:', 'post-to-instagram') + ' ' + error.message);
         }
     };
 
@@ -280,64 +331,92 @@ const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostCom
 
     return (
         <Modal
-            title={__('Review, Reorder & Crop', 'post-to-instagram')}
+            title={__('Review, Crop & Post', 'post-to-instagram')}
             onRequestClose={onClose}
-            shouldCloseOnClickOutside={false}
-            className="pti-multi-crop-modal pti-multi-crop-modal--tall"
-        >
-            <div className="pti-multi-crop-main-content">
-                <div className="pti-crop-controls-header">
-                    <SelectControl
-                        label={__('Aspect Ratio', 'post-to-instagram')}
-                        value={aspectRatio}
-                        options={aspectRatios}
-                        onChange={handleAspectRatioChange}
-                        help={__('Applies to all images.', 'post-to-instagram')}
-                        __nextHasNoMarginBottom
-                        __next40pxDefaultSize={true}
-                    />
-                     <div className="pti-crop-navigation-info">
-                        <span>{`${__('Image', 'post-to-instagram')} ${currentIndex + 1} / ${images.length}`}</span>
+            className="pti-crop-modal"
+            size="large"
+            actions={[
+                !showScheduleForm && (
+                    <div key="modal-actions-default" className="pti-modal-actions">
+                        <Button variant="secondary" onClick={onClose} disabled={isProcessing}>
+                            {__('Cancel', 'post-to-instagram')}
+                        </Button>
+                        <div style={{ flex: 1 }} />
+                        <Button variant="secondary" onClick={() => setShowScheduleForm(true)} disabled={isProcessing}>
+                            {__('Schedule Post', 'post-to-instagram')}
+                        </Button>
+                        <Button variant="primary" onClick={handleConfirmAndPost} disabled={isProcessing}>
+                            {__('Post Now', 'post-to-instagram')}
+                        </Button>
                     </div>
-                </div>
-                <div className="pti-crop-container" style={{ position: 'relative', height: 440, width: '100%', background: '#333', marginTop: 8 }}>
-                    <Cropper
-                        image={currentImage.originalUrl || currentImage.url}
-                        crop={crop}
-                        zoom={zoom}
-                        rotation={rotation}
-                        aspect={aspectRatio}
-                        onCropChange={onCropChange}
-                        onZoomChange={onZoomChange}
-                        onCropComplete={onCropFull}
-                    />
-                    {isProcessing && (
-                         <div className="pti-processing-overlay">
-                            <Spinner />
-                            <p>{processingMessage}</p>
-                        </div>
-                    )}
-                </div>
-
-                 <ReorderableThumbnails
-                    images={images}
-                    currentIndex={currentIndex}
-                    onSelect={selectImage}
-                    onReorder={handleReorder}
-                />
+                ),
+                showScheduleForm && (
+                     <div key="modal-actions-schedule" className="pti-modal-actions">
+                         <Button variant="secondary" onClick={() => setShowScheduleForm(false)} disabled={isProcessing}>
+                            {__('Back', 'post-to-instagram')}
+                        </Button>
+                        <div style={{ flex: 1 }} />
+                         <Button variant="primary" onClick={handleConfirmAndSchedule} disabled={isProcessing}>
+                            {__('Confirm Schedule', 'post-to-instagram')}
+                        </Button>
+                    </div>
+                )
+            ]}
+        >
+            <div className="pti-crop-main-area">
+                {isProcessing ? (
+                    <div className="pti-processing-overlay">
+                        <Spinner />
+                        <p>{processingMessage}</p>
+                    </div>
+                ) : (
+                    <>
+                        {showScheduleForm ? (
+                            <div className="pti-schedule-form">
+                                <h3>{__('Select Schedule Time', 'post-to-instagram')}</h3>
+                                <DateTimePicker
+                                    currentDate={scheduleDateTime}
+                                    onChange={(newDate) => setScheduleDateTime(newDate)}
+                                    is12Hour={true}
+                                />
+                            </div>
+                        ) : (
+                            <div className="pti-cropper-wrapper">
+                                <SelectControl
+                                    label={__('Aspect Ratio', 'post-to-instagram')}
+                                    value={aspectRatio}
+                                    options={aspectRatios}
+                                    onChange={handleAspectRatioChange}
+                                    help={__('Applies to all images.', 'post-to-instagram')}
+                                />
+                                <div className="pti-crop-container">
+                                    <Cropper
+                                        image={currentImage?.url}
+                                        crop={crop}
+                                        zoom={zoom}
+                                        rotation={rotation}
+                                        aspect={aspectRatio}
+                                        onCropChange={onCropChange}
+                                        onZoomChange={onZoomChange}
+                                        onCropComplete={onCropFull}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </>
+                )}
             </div>
-
-            <div className="pti-multi-crop-footer">
-                <Button isSecondary onClick={onClose} disabled={isProcessing}>
-                    {__('Cancel', 'post-to-instagram')}
-                </Button>
-                <div style={{ flex: 1 }} /> {/* Spacer */}
-                <Button isSecondary disabled={true}>
-                    {__('Schedule Post', 'post-to-instagram')}
-                </Button>
-                <Button isPrimary onClick={handleConfirmAndPost} disabled={isProcessing || images.length === 0}>
-                    {isProcessing ? __('Posting...', 'post-to-instagram') : __('Post Now', 'post-to-instagram')}
-                </Button>
+            <div className="pti-crop-footer">
+                <ReorderableThumbnails
+                     images={images}
+                     currentIndex={currentIndex}
+                     onSelect={selectImage}
+                     onReorder={handleReorder}
+                 />
+                 <div className="pti-crop-navigation-info">
+                    <span>{`${__('Image', 'post-to-instagram')} ${currentIndex + 1} / ${images.length}`}</span>
+                    <p>{__('Click to select, drag to reorder.', 'post-to-instagram')}</p>
+                 </div>
             </div>
         </Modal>
     );
