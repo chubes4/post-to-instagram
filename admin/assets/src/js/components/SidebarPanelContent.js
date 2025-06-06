@@ -22,7 +22,8 @@ const ScheduledPostsList = ({ posts, title }) => {
                         {sprintf(
                             __('%d images scheduled for %s', 'post-to-instagram'),
                             post.image_ids.length,
-                            post.schedule_time
+                            // A proper date formatting library would be better here in a real app
+                            new Date(post.schedule_time).toLocaleString()
                         )}
                         {/* Add Edit/Cancel buttons here later */}
                     </li>
@@ -83,13 +84,10 @@ const SidebarPanelContent = ({
         }
     }, [isAuthenticated, postId]);
 
-    const handlePostComplete = () => {
-        // This function is called after posting or scheduling is complete
-        // It should refresh the lists of scheduled/posted items
-        fetchScheduledPosts();
-        // Reset selection state, etc.
-        setSelectedImages([]);
-        setCaption('');
+    // This new handler wraps the original and adds our new logic
+    const onPostOrScheduleComplete = () => {
+        handlePostComplete(); // Call original handler to reset parent state
+        fetchScheduledPosts(); // Refresh the scheduled posts list
     };
 
     if (isLoading) {
@@ -200,7 +198,7 @@ const SidebarPanelContent = ({
                                         caption={caption}
                                         postId={postId}
                                         onClose={() => setShowMultiCropModal(false)}
-                                        onPostComplete={handlePostComplete}
+                                        onPostComplete={onPostOrScheduleComplete}
                                     />
                                 )}
                             </Fragment>
