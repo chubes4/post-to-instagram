@@ -2,7 +2,8 @@ import { useState, useCallback, useEffect, useRef } from '@wordpress/element';
 import { Modal, Button, SelectControl, Spinner, DateTimePicker } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import Cropper from 'react-easy-crop';
-import { getCroppedImg } from './utils/cropImage';
+import { getCroppedImg } from '../utils/cropImage';
+import useInstagramPostActions from '../hooks/useInstagramPostActions';
 
 const aspectRatios = [
     { label: __('Square (1:1)', 'post-to-instagram'), value: 1 / 1 },
@@ -83,11 +84,16 @@ const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostCom
     const [crop, setCrop] = useState({ x: 0, y: 0 });
     const [zoom, setZoom] = useState(1);
     const [rotation, setRotation] = useState(0);
-    const [isProcessing, setIsProcessing] = useState(false);
-    const [processingMessage, setProcessingMessage] = useState('');
     const [showScheduleForm, setShowScheduleForm] = useState(false);
     const [scheduleDateTime, setScheduleDateTime] = useState(new Date());
     const currentImage = images[currentIndex];
+
+    const {
+        postToInstagram,
+        scheduleInstagramPost,
+        isProcessing,
+        processingMessage,
+    } = useInstagramPostActions();
 
     // On mount, set aspect ratio to closest to first image's ratio
     useEffect(() => {
@@ -209,118 +215,36 @@ const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostCom
     };
 
     const handleConfirmAndPost = async () => {
-        setIsProcessing(true);
         try {
-            const tempUrls = [];
-            for (let i = 0; i < images.length; i++) {
-                setProcessingMessage(`${__('Processing image', 'post-to-instagram')} ${i + 1}/${images.length}...`);
-                
-                const img = images[i];
-                const cropData = imageCropData[i];
-                let croppedAreaPixels = cropData.croppedAreaPixels;
-
-                if (!croppedAreaPixels) {
-                    croppedAreaPixels = getDefaultCroppedAreaPixels(img, aspectRatio);
-                }
-
-                const croppedBlob = await getCroppedImg(img.originalUrl || img.url, croppedAreaPixels, rotation);
-
-                const formData = new FormData();
-                const fileName = 'cropped-' + (img.url.split('/').pop() || 'image.jpg');
-                formData.append('cropped_image', croppedBlob, fileName);
-
-                const response = await wp.apiFetch({
-                    path: '/pti/v1/upload-cropped-image',
-                    method: 'POST',
-                    body: formData,
-                });
-
-                if (!response.success || !response.url) {
-                    throw new Error(response.message || `Failed to upload image ${i + 1}.`);
-                }
-                tempUrls.push(response.url);
-            }
-
-            setProcessingMessage(__('Finalizing post with Instagram...', 'post-to-instagram'));
-
-            const imageIds = images.map(img => img.id);
-
-            const postResponse = await wp.apiFetch({
-                path: '/pti/v1/post-now',
-                method: 'POST',
-                data: {
-                    post_id: postId,
-                    image_urls: tempUrls,
-                    image_ids: imageIds,
-                    caption: caption,
-                },
+            await postToInstagram({
+                postId,
+                images,
+                caption,
+                aspectRatio,
+                imageCropData,
+                rotation,
+                nonce: pti_data.nonce_post_media,
             });
-
-            if (!postResponse.success) {
-                throw new Error(postResponse.message || 'Failed to post to Instagram.');
-            }
-
-            setProcessingMessage(__('Successfully posted to Instagram!', 'post-to-instagram'));
             onPostComplete();
-            setTimeout(onClose, 1000);
-
         } catch (error) {
-            setIsProcessing(false);
             alert(__('Error posting to Instagram:', 'post-to-instagram') + ' ' + error.message);
         }
     };
 
     const handleConfirmAndSchedule = async () => {
-        setIsProcessing(true);
         try {
-            const finalCropData = [];
-            const imageIds = images.map(img => img.id);
-
-            for (let i = 0; i < images.length; i++) {
-                setProcessingMessage(`${__('Processing image', 'post-to-instagram')} ${i + 1}/${images.length}...`);
-                
-                const img = images[i];
-                const cropData = imageCropData[i];
-                let croppedAreaPixels = cropData.croppedAreaPixels;
-
-                if (!croppedAreaPixels) {
-                    croppedAreaPixels = getDefaultCroppedAreaPixels(img, aspectRatio);
-                }
-
-                finalCropData.push({
-                    image_id: img.id,
-                    aspect_ratio: aspectRatio,
-                    crop: cropData.crop,
-                    zoom: cropData.zoom,
-                    croppedAreaPixels: croppedAreaPixels
-                });
-            }
-
-            setProcessingMessage(__('Scheduling post...', 'post-to-instagram'));
-
-            const scheduleResponse = await wp.apiFetch({
-                path: '/pti/v1/schedule-post',
-                method: 'POST',
-                data: {
-                    post_id: postId,
-                    image_ids: imageIds,
-                    crop_data: finalCropData,
-                    caption: caption,
-                    schedule_time: scheduleDateTime,
-                },
+            await scheduleInstagramPost({
+                postId,
+                images,
+                imageCropData,
+                aspectRatio,
+                caption,
+                scheduleDateTime,
+                rotation,
+                nonce: pti_data.nonce_schedule_media,
             });
-
-            if (!scheduleResponse.success) {
-                throw new Error(scheduleResponse.message || 'Failed to schedule post.');
-            }
-
-            // Success
-            setProcessingMessage(__('Post successfully scheduled!', 'post-to-instagram'));
-            onPostComplete(); // Notify parent to refresh data
-            setTimeout(onClose, 1000); // Close modal after a short delay
-
+            onPostComplete();
         } catch (error) {
-            setIsProcessing(false);
             alert(__('Error scheduling post:', 'post-to-instagram') + ' ' + error.message);
         }
     };
@@ -375,7 +299,6 @@ const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostCom
                         />
                     </div>
                 )}
-
 
                  <ReorderableThumbnails
                     images={images}

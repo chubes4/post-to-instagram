@@ -84,8 +84,8 @@ class PTI_Admin_UI {
         $shared_image_ids = array();
         if (is_array($shared_meta)) {
             foreach ($shared_meta as $item) {
-                if (isset($item['attachment_id'])) {
-                    $shared_image_ids[] = intval($item['attachment_id']);
+                if (isset($item['image_id'])) {
+                    $shared_image_ids[] = intval($item['image_id']);
                 }
             }
         }
