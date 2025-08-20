@@ -2,16 +2,23 @@
 // After a successful post or schedule, a global WordPress notice (green for success, red for error) is shown above the editor using wp.data.dispatch('core/notices').createNotice.
 // This ensures user feedback is always visible, regardless of modal state.
 
-import { useState } from '@wordpress/element';
+import { useState, useCallback, useRef } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import { getCroppedImg } from '../utils/cropImage';
 
 function useInstagramPostActions() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [processingMessage, setProcessingMessage] = useState('');
+    const isPosting = useRef(false);
 
     // Post to Instagram
-    const postToInstagram = async ({ postId, images, caption, aspectRatio, imageCropData, rotation, nonce }) => {
+    const postToInstagram = useCallback(async ({ postId, images, caption, aspectRatio, imageCropData, rotation, nonce }) => {
+        // Atomic check-and-set to prevent race conditions
+        if (isPosting.current) {
+            console.warn('Post to Instagram already in progress.');
+            return;
+        }
+        isPosting.current = true;
         setIsProcessing(true);
         try {
             const tempUrls = [];
@@ -65,26 +72,36 @@ function useInstagramPostActions() {
                     _wpnonce: nonce,
                 },
             });
-            if (!postResponse.success) {
-                throw new Error(postResponse.message || 'Failed to post to Instagram.');
+            // Handle WordPress REST API response variations
+            const isSuccess = postResponse.success === true || 
+                             (postResponse.data && postResponse.data.success === true) ||
+                             (!postResponse.success && !postResponse.message && postResponse.media_id);
+
+            if (!isSuccess) {
+                const errorMessage = postResponse.message || 
+                                    (postResponse.data && postResponse.data.message) || 
+                                    'Failed to post to Instagram.';
+                throw new Error(errorMessage);
             }
             setProcessingMessage(__('Successfully posted to Instagram!', 'post-to-instagram'));
             setIsProcessing(false);
             if (window.wp && window.wp.data && window.wp.data.dispatch) {
                 window.wp.data.dispatch('core/notices').createNotice('success', __('Successfully posted to Instagram!', 'post-to-instagram'), { isDismissible: true });
             }
+            isPosting.current = false;
             return postResponse;
         } catch (error) {
             setIsProcessing(false);
             if (window.wp && window.wp.data && window.wp.data.dispatch) {
                 window.wp.data.dispatch('core/notices').createNotice('error', error.message || __('Error posting to Instagram.', 'post-to-instagram'), { isDismissible: true });
             }
+            isPosting.current = false;
             throw error;
         }
-    };
+    }, []);
 
     // Schedule Instagram Post
-    const scheduleInstagramPost = async ({ postId, images, imageCropData, aspectRatio, caption, scheduleDateTime, rotation, nonce }) => {
+    const scheduleInstagramPost = useCallback(async ({ postId, images, imageCropData, aspectRatio, caption, scheduleDateTime, rotation, nonce }) => {
         setIsProcessing(true);
         try {
             const finalCropData = [];
@@ -149,7 +166,7 @@ function useInstagramPostActions() {
             }
             throw error;
         }
-    };
+    }, []);
 
     return {
         postToInstagram,

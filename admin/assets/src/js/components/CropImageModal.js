@@ -86,6 +86,7 @@ const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostCom
     const [rotation, setRotation] = useState(0);
     const [showScheduleForm, setShowScheduleForm] = useState(false);
     const [scheduleDateTime, setScheduleDateTime] = useState(new Date());
+    const isPosting = useRef(false);
     const currentImage = images[currentIndex];
 
     const {
@@ -215,6 +216,12 @@ const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostCom
     };
 
     const handleConfirmAndPost = async () => {
+        // Atomic protection against double-clicks
+        if (isPosting.current) {
+            return;
+        }
+        isPosting.current = true;
+        
         try {
             await postToInstagram({
                 postId,
@@ -228,6 +235,8 @@ const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostCom
             onPostComplete();
         } catch (error) {
             alert(__('Error posting to Instagram:', 'post-to-instagram') + ' ' + error.message);
+        } finally {
+            isPosting.current = false;
         }
     };
 
