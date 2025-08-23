@@ -30,13 +30,13 @@ This is a WordPress plugin for posting images from WordPress posts to Instagram 
 - `includes/class-instagram-api.php` - Instagram Graph API integration for posting
 - `includes/class-pti-rest-api.php` - REST API endpoints for frontend communication
 - `schedule/class-scheduler.php` - WP-Cron based scheduling system
-- `includes/class-pti-temp-cleanup.php` - Daily cleanup of temporary files
+- `schedule/class-temp-cleanup.php` - Daily cleanup of temporary files
 
 **JavaScript Frontend (React):**
 - `admin/assets/src/js/post-editor.js` - Main Gutenberg sidebar plugin entry point
-- `admin/assets/src/js/components/` - React components for UI (AuthPanel, CropImageModal, etc.)
+- `admin/assets/src/js/components/` - React components (AuthPanel, CropImageModal, ScheduledPosts, CaptionInput, CustomImageSelectModal, SidebarPanelContent)
 - `admin/assets/src/js/hooks/` - Custom React hooks (useInstagramAuth, useInstagramPostActions)
-- `admin/assets/src/js/utils/` - Utility functions for image handling
+- `admin/assets/src/js/utils/` - Utility functions (cropImage, cropUtils, getPostImageIds)
 
 ### REST API Endpoints (/pti/v1/)
 - **Authentication**: `/auth/status`, `/auth/credentials`, `/disconnect`
@@ -56,7 +56,7 @@ This is a WordPress plugin for posting images from WordPress posts to Instagram 
 ### Data Flow & Processing Model
 **Hybrid Processing Architecture:**
 1. **Image Selection**: Gutenberg content analysis → user selection → drag-and-drop reordering
-2. **Client-Side Processing**: Images cropped using `react-easy-crop` → canvas processing → blob creation
+2. **Client-Side Processing**: Images cropped using custom `cropImage` and `cropUtils` → canvas processing → blob creation
 3. **Temporary Storage**: Cropped images uploaded to `/wp-content/uploads/pti-temp/` via REST API
 4. **Instagram API**: Creates media containers → polls for FINISHED status → publishes
 5. **Metadata Tracking**: Stores shared images in post meta `_pti_instagram_shared_images`
@@ -72,6 +72,7 @@ This is a WordPress plugin for posting images from WordPress posts to Instagram 
 - **WP-Cron Integration**: Custom 5-minute interval processes scheduled posts
 - **Server-Side Cropping**: Uses WordPress image editor for delayed execution
 - **Error Recovery**: Failed posts marked with error messages, not removed from queue
+- **Race Condition Protection**: Atomic `isPosting.current` ref prevents duplicate submissions
 
 ### WordPress Integration
 - Uses Gutenberg block editor sidebar API
@@ -94,6 +95,7 @@ This is a WordPress plugin for posting images from WordPress posts to Instagram 
 - **Image Processing**: Temporary files auto-cleanup after 24 hours via WP-Cron
 - **OAuth Testing**: Use `/pti-oauth/` endpoint for redirect URL testing
 - **Security**: All operations protected with WordPress nonces and capability checks (`edit_posts`, `manage_options`)
+- **Debug Logging**: Debug statements present in Instagram API class for troubleshooting
 
 ### Data Storage Patterns  
 - **Plugin Settings**: Stored in `wp_options` as `pti_settings` (JSON object)
