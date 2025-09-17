@@ -53,8 +53,8 @@ register_activation_hook( PTI_PLUGIN_FILE, 'pti_activate_plugin' );
  * The code that runs during plugin deactivation.
  */
 function pti_deactivate_plugin() {
-    PTI_Temp_Cleanup::on_deactivation();
-    PTI_Scheduler::on_deactivation();
+    PostToInstagram\Core\Actions\Schedule::on_deactivation();
+    PostToInstagram\Core\Actions\Cleanup::on_deactivation();
 }
 register_deactivation_hook( PTI_PLUGIN_FILE, 'pti_deactivate_plugin' );
 
@@ -64,6 +64,19 @@ register_deactivation_hook( PTI_PLUGIN_FILE, 'pti_deactivate_plugin' );
  * @param string $class_name The name of the class to load.
  */
 function pti_autoloader( $class_name ) {
+	// Handle PSR-4 namespaced classes
+	if ( strpos( $class_name, 'PostToInstagram\\' ) === 0 ) {
+		$class_file = str_replace( 'PostToInstagram\\', '', $class_name );
+		$class_file = str_replace( '\\', '/', $class_file );
+		$file_path = PTI_PLUGIN_DIR . 'inc/' . $class_file . '.php';
+
+		if ( file_exists( $file_path ) ) {
+			require_once $file_path;
+			return;
+		}
+	}
+
+	// Handle legacy PTI_ classes
 	if ( strpos( $class_name, 'PTI_' ) !== 0 ) {
 		return;
 	}
@@ -71,7 +84,7 @@ function pti_autoloader( $class_name ) {
 	$class_file = str_replace( array( 'PTI_', '_' ), array( '', '-' ), $class_name );
 	$class_file = 'class-' . strtolower( $class_file ) . '.php';
 
-	$directories = array( 'admin/', 'auth/', 'schedule/', 'includes/' );
+	$directories = array( 'includes/' );
 	foreach ( $directories as $dir ) {
 		$file_path = PTI_PLUGIN_DIR . $dir . $class_file;
 		if ( file_exists( $file_path ) ) {
@@ -82,21 +95,24 @@ function pti_autoloader( $class_name ) {
 }
 spl_autoload_register( 'pti_autoloader' );
 
-require_once PTI_PLUGIN_DIR . 'includes/class-pti-rest-api.php';
-new PTI_REST_API();
-
 /**
  * Initialize the plugin.
  *
  * Loads all the main plugin classes and features.
  */
 function pti_init_plugin() {
-    new PTI_Auth_Handler();
+    // Register core systems
+    PostToInstagram\Core\RestApi::register();
+
+    // Register action-based systems
+    PostToInstagram\Core\Actions\Post::register();
+    PostToInstagram\Core\Actions\Schedule::register();
+    PostToInstagram\Core\Actions\Cleanup::register();
+
+    // Register admin functionality
     if ( is_admin() ) {
-        new PTI_Admin_UI();
+        PostToInstagram\Core\Admin::register();
     }
-    new PTI_Temp_Cleanup();
-    new PTI_Scheduler();
 }
 add_action( 'plugins_loaded', 'pti_init_plugin' );
 
@@ -112,8 +128,7 @@ function pti_setup_oauth_routing() {
     });
     add_action('init', function() {
         if (get_query_var('pti_oauth') == '1') {
-            $handler = new PTI_Auth_Handler();
-            $handler->handle_oauth_redirect();
+            PostToInstagram\Core\Auth::handle_oauth_redirect();
             exit;
         }
     });

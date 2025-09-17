@@ -17,26 +17,26 @@ No specific test framework is configured. Check with the user before implementin
 This is a WordPress plugin for posting images from WordPress posts to Instagram using OAuth 2.0 authentication. The architecture uses a modular PHP backend with PSR-4 autoloading and a modern React frontend.
 
 ### Autoloading & Class Structure
-- **PSR-4 Autoloader**: Converts class names like `PTI_Auth_Handler` to `auth/class-auth-handler.php`
-- **File Organization**: Classes organized by functionality in subdirectories (admin/, auth/, includes/, schedule/)
+- **PSR-4 Autoloader**: Handles both legacy PTI_ classes and modern PostToInstagram\ namespaced classes
+- **File Organization**: Centralized architecture under `/inc/Core/` with action-based patterns
 - **WordPress Standards**: Follows WordPress coding standards with proper escaping and sanitization
 
 ### Core Components
 
 **PHP Backend:**
 - `post-to-instagram.php` - Main plugin file with autoloader and initialization
-- `admin/class-admin-ui.php` - Enqueues assets and localizes data for the editor
-- `auth/class-auth-handler.php` - Handles Instagram OAuth flow and token management  
-- `includes/class-instagram-api.php` - Instagram Graph API integration for posting
-- `includes/class-pti-rest-api.php` - REST API endpoints for frontend communication
-- `schedule/class-scheduler.php` - WP-Cron based scheduling system
-- `schedule/class-temp-cleanup.php` - Daily cleanup of temporary files
+- `inc/Core/Admin.php` - Admin interface management and asset loading
+- `inc/Core/Auth.php` - Instagram OAuth flow and token management
+- `inc/Core/RestApi.php` - REST API endpoints for frontend communication
+- `inc/Core/Actions/Post.php` - Instagram Graph API integration for posting
+- `inc/Core/Actions/Schedule.php` - WP-Cron based scheduling system
+- `inc/Core/Actions/Cleanup.php` - Daily cleanup of temporary files
 
 **JavaScript Frontend (React):**
-- `admin/assets/src/js/post-editor.js` - Main Gutenberg sidebar plugin entry point
-- `admin/assets/src/js/components/` - React components (AuthPanel, CropImageModal, ScheduledPosts, CaptionInput, CustomImageSelectModal, SidebarPanelContent)
-- `admin/assets/src/js/hooks/` - Custom React hooks (useInstagramAuth, useInstagramPostActions)
-- `admin/assets/src/js/utils/` - Utility functions (cropImage, cropUtils, getPostImageIds)
+- `inc/Assets/src/js/post-editor.js` - Main Gutenberg sidebar plugin entry point
+- `inc/Assets/src/js/components/` - React components (AuthPanel, CropImageModal, ScheduledPosts, CaptionInput, CustomImageSelectModal, SidebarPanelContent)
+- `inc/Assets/src/js/hooks/` - Custom React hooks (useInstagramAuth, useInstagramPostActions)
+- `inc/Assets/src/js/utils/` - Utility functions (cropImage, cropUtils, getPostImageIds)
 
 ### REST API Endpoints (/pti/v1/)
 - **Authentication**: `/auth/status`, `/auth/credentials`, `/disconnect`

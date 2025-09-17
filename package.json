@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "build": "wp-scripts build admin/assets/src/js/post-editor.js --output-path=admin/assets/js/ && ./build-dist.sh",
-    "start": "wp-scripts start admin/assets/src/js/post-editor.js --output-path=admin/assets/js/",
+    "build": "wp-scripts build inc/Assets/src/js/post-editor.js --output-path=inc/Assets/dist/js/ && ./build-dist.sh",
+    "start": "wp-scripts start inc/Assets/src/js/post-editor.js --output-path=inc/Assets/dist/js/",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

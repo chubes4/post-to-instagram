@@ -1,48 +1,31 @@
 <?php
 /**
- * Instagram OAuth 2.0 authentication handler.
+ * Instagram OAuth Authentication
  *
- * Manages Instagram OAuth flow, token exchange, and authentication state.
- * Handles both short-lived and long-lived access tokens with CSRF protection.
+ * Centralized Instagram OAuth 2.0 authentication management. Handles OAuth flow,
+ * token exchange, and authentication state using utility class pattern.
+ * Manages both short-lived and long-lived access tokens with CSRF protection.
  *
- * @package Post_to_Instagram
+ * @package PostToInstagram\Core
  */
 
+namespace PostToInstagram\Core;
+
 if ( ! defined( 'WPINC' ) ) {
-	die;
+    die;
 }
 
 /**
- * PTI_Auth_Handler Class
+ * Auth Class
  *
- * Handles Instagram OAuth 2.0 authentication flow with popup communication.
+ * Complete Instagram OAuth authentication system.
  */
-class PTI_Auth_Handler {
+class Auth {
 
     const OAUTH_REDIRECT_PARAM = 'pti_oauth_redirect';
     const OAUTH_STATE_NONCE_ACTION = 'pti_oauth_state';
     const INSTAGRAM_GRAPH_API_URL = 'https://graph.instagram.com';
-    const INSTAGRAM_API_URL = 'https://api.instagram.com'; // For OAuth token exchange
-    const REST_API_NAMESPACE = 'pti/v1';
-
-    public function __construct() {
-        add_action( 'init', array( $this, 'handle_oauth_redirect' ), 5 ); // Early hook for redirect handling
-    }
-
-    /**
-     * Get authentication status data for frontend.
-     *
-     * @return array Authentication status with URLs and nonces
-     */
-    private function get_auth_status_data() {
-        return array(
-            'is_configured'   => self::is_configured(),
-            'is_authenticated'=> self::is_authenticated(),
-            'auth_url'        => self::is_configured() && !self::is_authenticated() ? self::get_authorization_url() : '#',
-            'nonce_auth_check' => wp_create_nonce('pti_auth_check_nonce'),
-            'ajax_url'        => admin_url('admin-ajax.php'),
-        );
-    }
+    const INSTAGRAM_API_URL = 'https://api.instagram.com';
 
     /**
      * Check if Instagram App ID and Secret are configured.
@@ -50,9 +33,9 @@ class PTI_Auth_Handler {
      * @return bool True if both app_id and app_secret are set
      */
     public static function is_configured() {
-        $options = get_option('pti_settings');
-        $app_id = isset($options['app_id']) ? $options['app_id'] : '';
-        $app_secret = isset($options['app_secret']) ? $options['app_secret'] : '';
+        $options = get_option( 'pti_settings' );
+        $app_id = isset( $options['app_id'] ) ? $options['app_id'] : '';
+        $app_secret = isset( $options['app_secret'] ) ? $options['app_secret'] : '';
         return ! empty( $app_id ) && ! empty( $app_secret );
     }
 
@@ -65,8 +48,8 @@ class PTI_Auth_Handler {
         if ( ! self::is_configured() ) {
             return false;
         }
-        $options = get_option('pti_settings');
-        $auth_details = isset($options['auth_details']) ? $options['auth_details'] : array();
+        $options = get_option( 'pti_settings' );
+        $auth_details = isset( $options['auth_details'] ) ? $options['auth_details'] : array();
         return ! empty( $auth_details['access_token'] ) && ! empty( $auth_details['user_id'] );
     }
 
@@ -79,8 +62,8 @@ class PTI_Auth_Handler {
         if ( ! self::is_authenticated() ) {
             return null;
         }
-        $options = get_option('pti_settings');
-        $auth_details = isset($options['auth_details']) ? $options['auth_details'] : array();
+        $options = get_option( 'pti_settings' );
+        $auth_details = isset( $options['auth_details'] ) ? $options['auth_details'] : array();
         return $auth_details['access_token'];
     }
 
@@ -93,8 +76,8 @@ class PTI_Auth_Handler {
         if ( ! self::is_authenticated() ) {
             return null;
         }
-        $options = get_option('pti_settings');
-        $auth_details = isset($options['auth_details']) ? $options['auth_details'] : array();
+        $options = get_option( 'pti_settings' );
+        $auth_details = isset( $options['auth_details'] ) ? $options['auth_details'] : array();
         return $auth_details['user_id'];
     }
 
@@ -105,10 +88,10 @@ class PTI_Auth_Handler {
      */
     public static function get_authorization_url() {
         if ( ! self::is_configured() ) {
-            return '#'; // Or some error indication
+            return '#';
         }
-        $options = get_option('pti_settings');
-        $app_id = isset($options['app_id']) ? $options['app_id'] : '';
+        $options = get_option( 'pti_settings' );
+        $app_id = isset( $options['app_id'] ) ? $options['app_id'] : '';
         $redirect_uri = self::get_redirect_uri();
         $state = wp_create_nonce( self::OAUTH_STATE_NONCE_ACTION );
 
@@ -119,13 +102,12 @@ class PTI_Auth_Handler {
             array(
                 'client_id'     => $app_id,
                 'redirect_uri'  => $redirect_uri,
-                'scope'         => implode(',', [
+                'scope'         => implode( ',', [
                     'instagram_business_basic',
                     'instagram_business_content_publish',
                     'instagram_business_manage_messages',
                     'instagram_business_manage_comments',
-                    // 'instagram_business_manage_insights', // add if needed
-                ]),
+                ] ),
                 'response_type' => 'code',
                 'state'         => $state,
                 'enable_fb_login' => '0',
@@ -151,8 +133,8 @@ class PTI_Auth_Handler {
      * Exchanges authorization code for tokens and stores credentials.
      * Uses CSRF protection and redirects to handler page for popup communication.
      */
-    public function handle_oauth_redirect() {
-        if ( ! is_main_query() || ! get_query_var('pti_oauth') ) {
+    public static function handle_oauth_redirect() {
+        if ( ! is_main_query() || ! get_query_var( 'pti_oauth' ) ) {
             return;
         }
 
@@ -166,21 +148,21 @@ class PTI_Auth_Handler {
 
         // CSRF protection: verify state nonce
         if ( ! $stored_state || $stored_state !== $state || ! wp_verify_nonce( $state, self::OAUTH_STATE_NONCE_ACTION ) ) {
-            $handler_url = plugin_dir_url( __FILE__ ) . 'oauth-handler.html?pti_auth_status=error&pti_auth_error=state_mismatch';
+            $handler_url = PTI_PLUGIN_URL . 'auth/oauth-handler.html?pti_auth_status=error&pti_auth_error=state_mismatch';
             wp_redirect( $handler_url );
             exit;
         }
         delete_transient( 'pti_oauth_state_' . $state );
 
         if ( ! self::is_configured() ) {
-            $handler_url = plugin_dir_url( __FILE__ ) . 'oauth-handler.html?pti_auth_status=error&pti_auth_error=not_configured';
+            $handler_url = PTI_PLUGIN_URL . 'auth/oauth-handler.html?pti_auth_status=error&pti_auth_error=not_configured';
             wp_redirect( $handler_url );
             exit;
         }
 
-        $options = get_option('pti_settings');
-        $app_id = isset($options['app_id']) ? $options['app_id'] : '';
-        $app_secret = isset($options['app_secret']) ? $options['app_secret'] : '';
+        $options = get_option( 'pti_settings' );
+        $app_id = isset( $options['app_id'] ) ? $options['app_id'] : '';
+        $app_secret = isset( $options['app_secret'] ) ? $options['app_secret'] : '';
         $redirect_uri = self::get_redirect_uri();
 
         // Step 1: Exchange authorization code for short-lived token
@@ -200,7 +182,7 @@ class PTI_Auth_Handler {
         );
 
         if ( is_wp_error( $response ) ) {
-            $handler_url = plugin_dir_url( __FILE__ ) . 'oauth-handler.html?pti_auth_status=error&pti_auth_error=token_exchange_failed';
+            $handler_url = PTI_PLUGIN_URL . 'auth/oauth-handler.html?pti_auth_status=error&pti_auth_error=token_exchange_failed';
             wp_redirect( $handler_url );
             exit;
         }
@@ -209,7 +191,7 @@ class PTI_Auth_Handler {
         $data = json_decode( $body, true );
 
         if ( empty( $data['access_token'] ) || empty( $data['user_id'] ) ) {
-            $handler_url = plugin_dir_url( __FILE__ ) . 'oauth-handler.html?pti_auth_status=error&pti_auth_error=short_token_missing';
+            $handler_url = PTI_PLUGIN_URL . 'auth/oauth-handler.html?pti_auth_status=error&pti_auth_error=short_token_missing';
             wp_redirect( $handler_url );
             exit;
         }
@@ -230,7 +212,7 @@ class PTI_Auth_Handler {
         );
 
         if ( is_wp_error( $long_lived_response ) ) {
-            $handler_url = plugin_dir_url( __FILE__ ) . 'oauth-handler.html?pti_auth_status=error&pti_auth_error=long_token_failed';
+            $handler_url = PTI_PLUGIN_URL . 'auth/oauth-handler.html?pti_auth_status=error&pti_auth_error=long_token_failed';
             wp_redirect( $handler_url );
             exit;
         }
@@ -239,7 +221,7 @@ class PTI_Auth_Handler {
         $long_lived_data = json_decode( $long_lived_body, true );
 
         if ( empty( $long_lived_data['access_token'] ) ) {
-            $handler_url = plugin_dir_url( __FILE__ ) . 'oauth-handler.html?pti_auth_status=error&pti_auth_error=long_token_missing';
+            $handler_url = PTI_PLUGIN_URL . 'auth/oauth-handler.html?pti_auth_status=error&pti_auth_error=long_token_missing';
             wp_redirect( $handler_url );
             exit;
         }
@@ -250,26 +232,26 @@ class PTI_Auth_Handler {
         $username = null;
         $user_info_resp = wp_remote_get(
             self::INSTAGRAM_GRAPH_API_URL . "/{$instagram_user_id}?fields=username&access_token={$long_lived_token}",
-            array('timeout' => 20)
+            array( 'timeout' => 20 )
         );
-        if (!is_wp_error($user_info_resp)) {
-            $user_info_body = json_decode(wp_remote_retrieve_body($user_info_resp), true);
-            if (!empty($user_info_body['username'])) {
+        if ( ! is_wp_error( $user_info_resp ) ) {
+            $user_info_body = json_decode( wp_remote_retrieve_body( $user_info_resp ), true );
+            if ( ! empty( $user_info_body['username'] ) ) {
                 $username = $user_info_body['username'];
             }
         }
 
         // Step 4: Store authentication credentials
-        $options = get_option('pti_settings', array());
+        $options = get_option( 'pti_settings', array() );
         $options['auth_details'] = array(
             'access_token' => $long_lived_token,
             'user_id'      => $instagram_user_id,
             'username'     => $username,
         );
-        update_option('pti_settings', $options);
+        update_option( 'pti_settings', $options );
 
-        $handler_url = plugin_dir_url( __FILE__ ) . 'oauth-handler.html?pti_auth_status=success';
+        $handler_url = PTI_PLUGIN_URL . 'auth/oauth-handler.html?pti_auth_status=success';
         wp_redirect( $handler_url );
         exit;
     }
-} 
+}

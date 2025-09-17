@@ -52,9 +52,13 @@ fi
 echo "✅ Validating build..."
 ESSENTIAL_FILES=(
     "$DIST_DIR/$PLUGIN_SLUG/post-to-instagram.php"
-    "$DIST_DIR/$PLUGIN_SLUG/admin/class-admin-ui.php"
-    "$DIST_DIR/$PLUGIN_SLUG/auth/class-auth-handler.php"
-    "$DIST_DIR/$PLUGIN_SLUG/includes/class-instagram-api.php"
+    "$DIST_DIR/$PLUGIN_SLUG/inc/Core/Admin.php"
+    "$DIST_DIR/$PLUGIN_SLUG/inc/Core/Auth.php"
+    "$DIST_DIR/$PLUGIN_SLUG/inc/Core/RestApi.php"
+    "$DIST_DIR/$PLUGIN_SLUG/inc/Core/Actions/Post.php"
+    "$DIST_DIR/$PLUGIN_SLUG/inc/Core/Actions/Schedule.php"
+    "$DIST_DIR/$PLUGIN_SLUG/inc/Core/Actions/Cleanup.php"
+    "$DIST_DIR/$PLUGIN_SLUG/auth/oauth-handler.html"
 )
 
 for file in "${ESSENTIAL_FILES[@]}"; do

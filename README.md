@@ -38,17 +38,20 @@ npm run start
 ### Project Structure
 ```
 post-to-instagram/
-├── admin/
-│   ├── assets/src/js/          # React source files
-│   └── class-admin-ui.php      # Asset enqueuing
+├── inc/
+│   ├── Assets/
+│   │   ├── src/js/              # React source files
+│   │   └── dist/               # Compiled assets
+│   └── Core/
+│       ├── Actions/
+│       │   ├── Post.php        # Instagram posting
+│       │   ├── Schedule.php    # WP-Cron scheduling
+│       │   └── Cleanup.php     # File cleanup
+│       ├── Admin.php           # Asset enqueuing & admin
+│       ├── Auth.php            # OAuth flow
+│       └── RestApi.php         # REST endpoints
 ├── auth/
-│   └── class-auth-handler.php  # OAuth flow
-├── includes/
-│   ├── class-instagram-api.php # Instagram API integration
-│   └── class-pti-rest-api.php  # REST endpoints
-├── schedule/
-│   ├── class-scheduler.php     # WP-Cron scheduling
-│   └── class-temp-cleanup.php  # File cleanup
+│   └── oauth-handler.html      # OAuth popup handler
 └── post-to-instagram.php       # Main plugin file
 ```
 
