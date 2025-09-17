@@ -1,7 +1,19 @@
+/**
+ * Image selection modal for Instagram posting.
+ *
+ * Displays WordPress media library images with selection tracking.
+ * Filters out already-posted images and supports up to 10 image selection.
+ */
 import { useState, useEffect } from '@wordpress/element';
 import { Modal, Button, Card, CardMedia, CardBody, Spinner, Notice, CheckboxControl } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 
+/**
+ * Fetch WordPress media attachments by IDs.
+ *
+ * @param {number[]} ids - Array of attachment IDs
+ * @return {Promise<Object[]>} Media objects from WP REST API
+ */
 const fetchImagesByIds = async (ids) => {
     if (!ids.length) return [];
     const params = ids.map(id => `include[]=${id}`).join('&');
@@ -38,7 +50,6 @@ const CustomImageSelectModal = ({
             });
     }, [allowedIds && allowedIds.join(',')]);
 
-    // Filter images based on includePosted
     const filteredImages = includePosted
         ? images
         : images.filter(img => !sharedImageIds.includes(img.id));
@@ -55,13 +66,16 @@ const CustomImageSelectModal = ({
         }
     };
 
+    /**
+     * Format selected images for cropping modal.
+     */
     const handleSelect = () => {
         const selectedImgs = selected.map(id => {
             const img = images.find(i => i.id === id);
             return {
                 id: img.id,
                 url: img.source_url,
-                originalUrl: img.source_url, // For the cropper
+                originalUrl: img.source_url,
                 alt: img.alt_text,
                 width: img.media_details?.width,
                 height: img.media_details?.height,

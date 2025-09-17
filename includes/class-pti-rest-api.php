@@ -1,9 +1,22 @@
 <?php
-// If this file is called directly, abort.
+/**
+ * REST API endpoints for Instagram posting.
+ *
+ * Provides secure endpoints for authentication, image upload, posting, and scheduling.
+ * All endpoints require appropriate WordPress capabilities and nonce verification.
+ *
+ * @package Post_to_Instagram
+ */
+
 if ( ! defined( 'WPINC' ) ) {
 	die;
 }
 
+/**
+ * PTI_REST_API Class
+ *
+ * Handles WordPress REST API endpoints for Instagram integration.
+ */
 class PTI_REST_API {
     const REST_API_NAMESPACE = 'pti/v1';
 
@@ -135,7 +148,6 @@ class PTI_REST_API {
             )
         );
 
-        // Endpoint for getting scheduled posts
         register_rest_route(
             self::REST_API_NAMESPACE,
             '/scheduled-posts',
@@ -153,12 +165,16 @@ class PTI_REST_API {
         );
     }
 
+    /**
+     * Get Instagram authentication status.
+     *
+     * @param WP_REST_Request $request Request object
+     * @return WP_REST_Response Authentication status data
+     */
     public function get_auth_status( $request ) {
-        if ( ! class_exists( 'PTI_Auth_Handler' ) ) {
-            return new WP_Error( 'pti_auth_handler_missing', __( 'Auth handler not loaded.', 'post-to-instagram' ), array( 'status' => 500 ) );
-        }
         $username = null;
-        $auth_details = pti_get_option('auth_details');
+        $options = get_option( 'pti_settings' );
+        $auth_details = isset( $options['auth_details'] ) ? $options['auth_details'] : null;
         if (isset($auth_details['username'])) {
             $username = $auth_details['username'];
         }
@@ -166,7 +182,7 @@ class PTI_REST_API {
             'is_configured'    => PTI_Auth_Handler::is_configured(),
             'is_authenticated' => PTI_Auth_Handler::is_authenticated(),
             'auth_url'         => PTI_Auth_Handler::is_configured() && !PTI_Auth_Handler::is_authenticated() ? PTI_Auth_Handler::get_authorization_url() : '#',
-            'app_id'           => pti_get_option('app_id'),
+            'app_id'           => isset( $options['app_id'] ) ? $options['app_id'] : '',
             'username'         => $username,
         ), 200 );
     }
@@ -177,11 +193,17 @@ class PTI_REST_API {
         if ( empty( $app_id ) ) {
             return new WP_Error( 'pti_missing_creds', __( 'App ID is required.', 'post-to-instagram' ), array( 'status' => 400 ) );
         }
-        pti_update_option( 'app_id', $app_id );
+        $options = get_option('pti_settings', array());
+        $options['app_id'] = $app_id;
+        update_option('pti_settings', $options);
         if ( ! empty( $app_secret ) ) {
-        pti_update_option( 'app_secret', $app_secret );
+        $options = get_option('pti_settings', array());
+        $options['app_secret'] = $app_secret;
+        update_option('pti_settings', $options);
         }
-        pti_update_option( 'auth_details', array() ); // Clear old auth details
+        $options = get_option('pti_settings', array());
+        $options['auth_details'] = array(); // Clear old auth details
+        update_option('pti_settings', $options);
         return new WP_REST_Response( array( 'success' => true, 'message' => __( 'Credentials saved.', 'post-to-instagram' ) ), 200 );
     }
 
@@ -192,7 +214,9 @@ class PTI_REST_API {
         if ( ! current_user_can( 'manage_options' ) ) {
             return new WP_Error( 'forbidden', __( 'You do not have permission to disconnect this account.', 'post-to-instagram' ), array( 'status' => 403 ) );
         }
-        pti_update_option( 'auth_details', array() );
+        $options = get_option('pti_settings', array());
+        $options['auth_details'] = array();
+        update_option('pti_settings', $options);
         return new WP_REST_Response( array( 'success' => true, 'message' => __( 'Account disconnected successfully.', 'post-to-instagram' ) ), 200 );
     }
 
@@ -224,10 +248,6 @@ class PTI_REST_API {
             if ( ! file_exists( $temp_dir_path . '/index.html' ) ) {
                 @file_put_contents( $temp_dir_path . '/index.html', '<!DOCTYPE html><html><head><title>Forbidden</title></head><body><p>Directory access is forbidden.</p></body></html>' );
             }
-            // Optionally, add .htaccess to deny direct listing if on Apache
-            // if ( ! file_exists( $temp_dir_path . '/.htaccess' ) ) {
-            //    @file_put_contents( $temp_dir_path . '/.htaccess', "Options -Indexes\ndeny from all" );
-            // }
         }
 
         // Override the uploads dir for this one operation

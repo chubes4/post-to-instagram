@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ### Build & Development
-- `npm run build` - Build production assets and create distribution zip
+- `npm run build` - Build production assets and automatically create distribution zip
 - `npm run start` - Start development mode with watch
-- `./build-dist.sh` - Create production-ready plugin distribution zip
+- `./build-dist.sh` - Create production-ready plugin distribution zip (called automatically by npm run build)
 
 ### Project Structure
 No specific test framework is configured. Check with the user before implementing tests.

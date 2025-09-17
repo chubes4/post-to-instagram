@@ -38,7 +38,6 @@ const ScheduledPosts = ({ postId, refreshKey }) => {
                 setIsFetchingThis(false);
             })
             .catch(error => {
-                console.error('Error fetching scheduled posts for this post:', error);
                 setIsFetchingThis(false);
             });
     };
@@ -51,7 +50,6 @@ const ScheduledPosts = ({ postId, refreshKey }) => {
                 setIsFetchingAll(false);
             })
             .catch(error => {
-                console.error('Error fetching all scheduled posts:', error);
                 setIsFetchingAll(false);
             });
     };

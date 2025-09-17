@@ -1,21 +1,27 @@
-// This hook provides postToInstagram and scheduleInstagramPost functions for posting and scheduling images to Instagram.
-// After a successful post or schedule, a global WordPress notice (green for success, red for error) is shown above the editor using wp.data.dispatch('core/notices').createNotice.
-// This ensures user feedback is always visible, regardless of modal state.
-
+/**
+ * Instagram posting and scheduling actions hook.
+ *
+ * Handles image cropping, upload, and Instagram API communication.
+ * Shows WordPress admin notices for user feedback.
+ */
 import { useState, useCallback, useRef } from '@wordpress/element';
 import { __ } from '@wordpress/i18n';
 import { getCroppedImg } from '../utils/cropImage';
+import { calculateCenterCrop } from '../utils/cropUtils';
 
 function useInstagramPostActions() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [processingMessage, setProcessingMessage] = useState('');
     const isPosting = useRef(false);
 
-    // Post to Instagram
+    /**
+     * Post images to Instagram immediately.
+     *
+     * Crops images, uploads to temp storage, then posts via Instagram API.
+     * Uses atomic protection against race conditions.
+     */
     const postToInstagram = useCallback(async ({ postId, images, caption, aspectRatio, imageCropData, rotation, nonce }) => {
-        // Atomic check-and-set to prevent race conditions
         if (isPosting.current) {
-            console.warn('Post to Instagram already in progress.');
             return;
         }
         isPosting.current = true;
@@ -28,22 +34,7 @@ function useInstagramPostActions() {
                 const cropData = imageCropData[i];
                 let croppedAreaPixels = cropData.croppedAreaPixels;
                 if (!croppedAreaPixels) {
-                    // fallback: center crop
-                    const imgW = img.width;
-                    const imgH = img.height;
-                    let cropW, cropH, x, y;
-                    if (imgW / imgH > aspectRatio) {
-                        cropH = imgH;
-                        cropW = imgH * aspectRatio;
-                        x = (imgW - cropW) / 2;
-                        y = 0;
-                    } else {
-                        cropW = imgW;
-                        cropH = imgW / aspectRatio;
-                        x = 0;
-                        y = (imgH - cropH) / 2;
-                    }
-                    croppedAreaPixels = { x, y, width: cropW, height: cropH };
+                    croppedAreaPixels = calculateCenterCrop(img.width, img.height, aspectRatio);
                 }
                 const croppedBlob = await getCroppedImg(img.originalUrl || img.url, croppedAreaPixels, rotation);
                 const formData = new FormData();
@@ -72,8 +63,7 @@ function useInstagramPostActions() {
                     _wpnonce: nonce,
                 },
             });
-            // Handle WordPress REST API response variations
-            const isSuccess = postResponse.success === true || 
+            const isSuccess = postResponse.success === true ||
                              (postResponse.data && postResponse.data.success === true) ||
                              (!postResponse.success && !postResponse.message && postResponse.media_id);
 
@@ -100,7 +90,11 @@ function useInstagramPostActions() {
         }
     }, []);
 
-    // Schedule Instagram Post
+    /**
+     * Schedule Instagram post for future publishing.
+     *
+     * Stores crop data for server-side processing via WP-Cron.
+     */
     const scheduleInstagramPost = useCallback(async ({ postId, images, imageCropData, aspectRatio, caption, scheduleDateTime, rotation, nonce }) => {
         setIsProcessing(true);
         try {
@@ -112,22 +106,7 @@ function useInstagramPostActions() {
                 const cropData = imageCropData[i];
                 let croppedAreaPixels = cropData.croppedAreaPixels;
                 if (!croppedAreaPixels) {
-                    // fallback: center crop
-                    const imgW = img.width;
-                    const imgH = img.height;
-                    let cropW, cropH, x, y;
-                    if (imgW / imgH > aspectRatio) {
-                        cropH = imgH;
-                        cropW = imgH * aspectRatio;
-                        x = (imgW - cropW) / 2;
-                        y = 0;
-                    } else {
-                        cropW = imgW;
-                        cropH = imgW / aspectRatio;
-                        x = 0;
-                        y = (imgH - cropH) / 2;
-                    }
-                    croppedAreaPixels = { x, y, width: cropW, height: cropH };
+                    croppedAreaPixels = calculateCenterCrop(img.width, img.height, aspectRatio);
                 }
                 finalCropData.push({
                     image_id: img.id,

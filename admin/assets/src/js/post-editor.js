@@ -7,7 +7,6 @@ import AuthPanel from './components/AuthPanel';
 import CustomImageSelectModal from './components/CustomImageSelectModal';
 import CropImageModal from './components/CropImageModal';
 import { getPostImageIds } from './utils/getPostImageIds';
-import { createNotice } from '@wordpress/notices';
 import CaptionInput from './components/CaptionInput';
 import SidebarPanelContent from './components/SidebarPanelContent';
 import useInstagramAuth from './hooks/useInstagramAuth';
@@ -69,37 +68,6 @@ const PostToInstagramPluginSidebar = () => {
         setShowImageModal(true);
     };
 
-    let panelContent;
-
-    panelContent = (
-        <SidebarPanelContent
-            isLoading={isLoading}
-            isConfigured={isConfigured}
-            showEdit={showEdit}
-            isAuthenticated={isAuthenticated}
-            authUrl={authUrl}
-            i18n={i18n}
-            checkAuthStatus={checkAuthStatus}
-            setShowEdit={setShowEdit}
-            savedAppId={savedAppId}
-            handleConnectInstagram={handleConnectInstagram}
-            openMediaModal={openMediaModal}
-            selectedImages={selectedImages}
-            setSelectedImages={setSelectedImages}
-            caption={caption}
-            setCaption={setCaption}
-            posting={posting}
-            handlePostNow={handlePostNow}
-            showImageModal={showImageModal}
-            allowedIds={allowedIds}
-            showMultiCropModal={showMultiCropModal}
-            postId={postId}
-            handlePostComplete={handlePostComplete}
-            setShowImageModal={setShowImageModal}
-            setShowMultiCropModal={setShowMultiCropModal}
-            refreshKey={refreshKey}
-        />
-    );
 
     return (
         <Fragment>
@@ -115,7 +83,33 @@ const PostToInstagramPluginSidebar = () => {
                 icon={PTI_ICON}
             >
                 <PanelBody>
-                    {panelContent}
+                    <SidebarPanelContent
+                        isLoading={isLoading}
+                        isConfigured={isConfigured}
+                        showEdit={showEdit}
+                        isAuthenticated={isAuthenticated}
+                        authUrl={authUrl}
+                        i18n={i18n}
+                        checkAuthStatus={checkAuthStatus}
+                        setShowEdit={setShowEdit}
+                        savedAppId={savedAppId}
+                        handleConnectInstagram={handleConnectInstagram}
+                        openMediaModal={openMediaModal}
+                        selectedImages={selectedImages}
+                        setSelectedImages={setSelectedImages}
+                        caption={caption}
+                        setCaption={setCaption}
+                        posting={posting}
+                        handlePostNow={handlePostNow}
+                        showImageModal={showImageModal}
+                        allowedIds={allowedIds}
+                        showMultiCropModal={showMultiCropModal}
+                        postId={postId}
+                        handlePostComplete={handlePostComplete}
+                        setShowImageModal={setShowImageModal}
+                        setShowMultiCropModal={setShowMultiCropModal}
+                        refreshKey={refreshKey}
+                    />
                 </PanelBody>
                 {/* Move Disconnect button to the bottom of the sidebar, only if authenticated */}
                 {isAuthenticated && (

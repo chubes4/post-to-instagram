@@ -1,9 +1,16 @@
+/**
+ * Multi-image crop modal with drag-and-drop reordering.
+ *
+ * Provides image cropping, aspect ratio selection, and reordering for Instagram carousel posts.
+ * Supports immediate posting and scheduling with atomic protection against double-clicks.
+ */
 import { useState, useCallback, useEffect, useRef } from '@wordpress/element';
 import { Modal, Button, SelectControl, Spinner, DateTimePicker } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import Cropper from 'react-easy-crop';
 import { getCroppedImg } from '../utils/cropImage';
 import useInstagramPostActions from '../hooks/useInstagramPostActions';
+import { calculateCenterCrop } from '../utils/cropUtils';
 
 const aspectRatios = [
     { label: __('Square (1:1)', 'post-to-instagram'), value: 1 / 1 },
@@ -12,6 +19,12 @@ const aspectRatios = [
     { label: __('Landscape (1.91:1)', 'post-to-instagram'), value: 1.91 / 1 },
 ];
 
+/**
+ * Find closest Instagram aspect ratio to image dimensions.
+ *
+ * @param {number} ratio - Image width/height ratio
+ * @return {number} Closest supported aspect ratio
+ */
 function findClosestAspectRatio(ratio) {
     if (!ratio) return aspectRatios[0].value;
     let closest = aspectRatios[0].value;
@@ -28,6 +41,9 @@ function findClosestAspectRatio(ratio) {
 
 const DEFAULT_ASPECT = 1;
 
+/**
+ * Draggable thumbnail component for reordering carousel images.
+ */
 const ReorderableThumbnails = ({ images, currentIndex, onSelect, onReorder }) => {
     const dragItem = useRef();
     const dragOverItem = useRef();
@@ -170,11 +186,13 @@ const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostCom
         setCurrentIndex(index);
     };
     
+    /**
+     * Handle drag-and-drop reordering with crop data synchronization.
+     */
     const handleReorder = (newImageList, from, to) => {
-        // Update the parent component's state
         setImages(newImageList);
-    
-        // Also reorder the crop data to match
+
+        // Reorder crop data to match new image order
         setImageCropData(prevCropData => {
             const newCropData = [...prevCropData];
             const [movedCropData] = newCropData.splice(from, 1);
@@ -182,7 +200,7 @@ const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostCom
             return newCropData;
         });
 
-        // If the currently selected item was moved, update the index to follow it
+        // Update current index if selected image was moved
         if (currentIndex === from) {
             setCurrentIndex(to);
         } else if (currentIndex >= to && currentIndex < from) {
@@ -194,29 +212,11 @@ const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostCom
         }
     };
 
-    const getDefaultCroppedAreaPixels = (img, aspect) => {
-        // Calculate a centered crop box for the given aspect ratio
-        const imgW = img.width;
-        const imgH = img.height;
-        let cropW, cropH, x, y;
-        if (imgW / imgH > aspect) {
-            // Image is wider than aspect
-            cropH = imgH;
-            cropW = imgH * aspect;
-            x = (imgW - cropW) / 2;
-            y = 0;
-        } else {
-            // Image is taller than aspect
-            cropW = imgW;
-            cropH = imgW / aspect;
-            x = 0;
-            y = (imgH - cropH) / 2;
-        }
-        return { x, y, width: cropW, height: cropH };
-    };
 
+    /**
+     * Post immediately to Instagram with atomic protection.
+     */
     const handleConfirmAndPost = async () => {
-        // Atomic protection against double-clicks
         if (isPosting.current) {
             return;
         }
@@ -240,6 +240,9 @@ const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostCom
         }
     };
 
+    /**
+     * Schedule Instagram post for future publishing.
+     */
     const handleConfirmAndSchedule = async () => {
         try {
             await scheduleInstagramPost({

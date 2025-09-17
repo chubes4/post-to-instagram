@@ -1,18 +1,40 @@
 <?php
-// If this file is called directly, abort.
+/**
+ * Instagram Graph API integration.
+ *
+ * Handles media upload, container creation, and publishing to Instagram.
+ * Supports both single images and carousel posts with status polling.
+ *
+ * @package Post_to_Instagram
+ */
+
 if ( ! defined( 'WPINC' ) ) {
     die;
 }
-// require_once PTI_PLUGIN_DIR . 'includes/convert-to-jpg.php';
 
+/**
+ * PTI_Instagram_API Class
+ *
+ * Manages Instagram Graph API operations for posting media.
+ */
 class PTI_Instagram_API {
     /**
-     * Post images to Instagram using direct URLs (already-cropped, already-JPEG)
-     * @param int $post_id
-     * @param array $image_urls
-     * @param string $caption
-     * @param array $image_ids
-     * @return array [ 'success' => bool, 'message' => string ]
+     * Post images to Instagram using direct URLs.
+     *
+     * Creates media containers, polls for FINISHED status, and publishes.
+     * Supports both single images and carousel posts (up to 10 images).
+     *
+     * @param int    $post_id   WordPress post ID for tracking
+     * @param array  $image_urls Array of public image URLs (JPEG format)
+     * @param string $caption   Instagram caption text
+     * @param array  $image_ids WordPress attachment IDs for tracking
+     *
+     * @return array {
+     *     @type bool   $success   Whether posting succeeded
+     *     @type string $message   Status message or error
+     *     @type string $permalink Instagram post URL (if available)
+     *     @type string $media_id  Instagram media ID
+     * }
      */
     public static function post_now_with_urls( $post_id, $image_urls, $caption = '', $image_ids = array() ) {
         if ( ! class_exists( 'PTI_Auth_Handler' ) ) {
@@ -25,7 +47,7 @@ class PTI_Instagram_API {
         }
         $container_ids = array();
         foreach ( $image_urls as $url ) {
-            // Step 1: Create media container for this image (assume JPEG, already public)
+            // Create media container for carousel item
             $response = wp_remote_post( "https://graph.instagram.com/{$user_id}/media", array(
                 'body' => array(
                     'image_url' => $url,
@@ -39,11 +61,10 @@ class PTI_Instagram_API {
             }
             $body = json_decode( wp_remote_retrieve_body( $response ), true );
             if ( empty( $body['id'] ) ) {
-                error_log('[PTI DEBUG] No container ID returned for image. Image URL: ' . $url . ' | Response: ' . wp_remote_retrieve_body( $response ));
                 return array( 'success' => false, 'message' => 'No container ID returned for image.' );
             }
             $container_id = $body['id'];
-            // Poll for FINISHED status
+            // Poll until container processing completes
             $status = '';
             $tries = 0;
             while ( $tries < 10 ) {
@@ -69,7 +90,7 @@ class PTI_Instagram_API {
             }
             $container_ids[] = $container_id;
         }
-        // Step 2: Create carousel container if needed
+        // Create carousel or single image container
         $main_container_id = null;
         if ( count( $container_ids ) > 1 ) {
             $children = implode( ',', $container_ids );
@@ -95,7 +116,7 @@ class PTI_Instagram_API {
         } else {
             return array( 'success' => false, 'message' => 'No valid images to post.' );
         }
-        // Step 3: Publish the container
+        // Publish to Instagram
         $publish_resp = wp_remote_post( "https://graph.instagram.com/{$user_id}/media_publish", array(
             'body' => array(
                 'creation_id' => $main_container_id,
@@ -111,7 +132,7 @@ class PTI_Instagram_API {
             return array( 'success' => false, 'message' => 'No media ID returned after publishing.' );
         }
         $media_id = $publish_body['id'];
-        // Fetch permalink for the new media (remove status_code from fields)
+        // Fetch Instagram post permalink
         $permalink_url = "https://graph.instagram.com/{$media_id}?fields=id,permalink,caption,media_type,media_url,thumbnail_url,timestamp,username&access_token={$access_token}";
         $permalink_resp = wp_remote_get($permalink_url, array('timeout' => 20));
         $permalink = null;
@@ -119,7 +140,7 @@ class PTI_Instagram_API {
             $permalink_body = json_decode(wp_remote_retrieve_body($permalink_resp), true);
             $permalink = isset($permalink_body['permalink']) ? $permalink_body['permalink'] : null;
         }
-        // Track published images in post meta (store original attachment IDs)
+        // Track shared images in WordPress post meta
         $shared = get_post_meta($post_id, '_pti_instagram_shared_images', true);
         if (!is_array($shared)) $shared = array();
         $existing_ids = array_column($shared, 'image_id');

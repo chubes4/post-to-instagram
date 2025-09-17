@@ -5,14 +5,6 @@
     padding: 10px;
 }
 
-/* Styles for modals (if custom styling beyond WP components is needed) */
-.pti-modal .components-modal__content {
-    /* Custom styles for modal content */
-}
-
-.pti-modal .components-modal__header {
-    /* Custom styles for modal header */
-}
 
 /* Styles for the notice container */
 .pti-notices-container .components-notice {
@@ -125,24 +117,11 @@
     outline: 2px solid transparent;
 }
 
-/* New Styles for Multi-Image Crop Modal */
+/* Multi-Image Crop Modal */
 .pti-multi-crop-modal .components-modal__content {
     display: flex;
     flex-direction: column;
     height: 100%;
-}
-
-.pti-multi-crop-main-content {
-    flex-grow: 1;
-    display: flex;
-    flex-direction: column;
-}
-
-.pti-crop-container {
-    position: relative;
-    height: 400px; /* Or make it responsive */
-    width: 100%;
-    background: #e0e0e0;
 }
 
 .pti-processing-overlay {
@@ -161,45 +140,10 @@
     color: #1e1e1e;
 }
 
-.pti-crop-controls {
-    padding: 12px 0;
-    border-bottom: 1px solid #ddd;
-}
-
 .pti-crop-navigation {
     display: flex;
     align-items: center;
     gap: 8px;
-}
-
-.pti-thumbnail-strip {
-    flex-shrink: 0;
-    padding: 12px 0;
-    display: flex;
-    gap: 8px;
-    overflow-x: auto;
-    background: #f0f0f0;
-}
-
-.pti-thumbnail-item {
-    cursor: pointer;
-    border: 2px solid transparent;
-    border-radius: 4px;
-    padding: 2px;
-    flex-shrink: 0; /* Prevent thumbnails from shrinking */
-}
-
-.pti-thumbnail-item.is-active {
-    border-color: #2271b1;
-    box-shadow: 0 0 0 1px #2271b1;
-}
-
-.pti-thumbnail-item img {
-    display: block;
-    width: 60px;
-    height: 60px;
-    object-fit: cover;
-    border-radius: 2px;
 }
 
 .pti-multi-crop-footer {
@@ -223,18 +167,21 @@
     max-height: 90vh;
     height: 90vh;
 }
+/* Consolidated modal styles */
 .pti-multi-crop-modal--tall .components-modal__content {
     height: 100%;
     min-height: 650px;
     display: flex;
     flex-direction: column;
 }
+
 .pti-multi-crop-main-content {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
     min-height: 0;
 }
+
 .pti-crop-container {
     position: relative;
     height: 440px;
@@ -243,12 +190,14 @@
     margin-bottom: 0;
     flex-shrink: 0;
 }
+
 .pti-crop-controls {
     padding: 12px 0 8px 0;
     border-bottom: 1px solid #ddd;
     background: #fff;
     z-index: 2;
 }
+
 .pti-thumbnail-strip {
     flex-shrink: 0;
     padding: 12px 0 0 0;
@@ -258,15 +207,6 @@
     background: #f0f0f0;
     border-top: 1px solid #eee;
     max-width: 100%;
-}
-.pti-multi-crop-footer {
-    flex-shrink: 0;
-    padding-top: 16px;
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-    border-top: 1px solid #ddd;
-    background: #fff;
 }
 
 .pti-crop-controls-header {
@@ -287,13 +227,6 @@
     white-space: nowrap;
 }
 
-.pti-multi-crop-footer {
-    padding-top: 16px;
-    border-top: 1px solid #ddd;
-    display: flex;
-    justify-content: flex-end;
-    gap: 8px;
-}
 
 .pti-reorderable-thumbnails {
     display: flex;
@@ -305,20 +238,26 @@
     overflow-y: auto;
 }
 
+/* Thumbnail item styles */
 .pti-thumbnail-item {
-    position: relative;
-    cursor: grab;
+    cursor: pointer;
     border: 2px solid transparent;
     border-radius: 4px;
+    padding: 2px;
+    flex-shrink: 0;
     transition: all 0.2s ease-in-out;
 }
+
 .pti-thumbnail-item:hover {
     border-color: #999;
 }
+
+.pti-thumbnail-item.is-active,
 .pti-thumbnail-item.is-current {
     border-color: #007cba;
     box-shadow: 0 0 0 1px #007cba;
 }
+
 .pti-thumbnail-item img {
     display: block;
     width: 60px;

@@ -1,11 +1,10 @@
 import { Fragment } from '@wordpress/element';
-import { __ } from '@wordpress/i18n';
+import { __, _n, sprintf } from '@wordpress/i18n';
 import { Button } from '@wordpress/components';
 import AuthPanel from './AuthPanel';
 import CustomImageSelectModal from './CustomImageSelectModal';
 import CropImageModal from './CropImageModal';
 import CaptionInput from './CaptionInput';
-import { _n, sprintf } from '@wordpress/i18n';
 import ScheduledPosts from './ScheduledPosts';
 
 const SidebarPanelContent = ({

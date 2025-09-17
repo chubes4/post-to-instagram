@@ -1,30 +1,40 @@
 <?php
-// If this file is called directly, abort.
+/**
+ * Admin UI integration for Gutenberg editor.
+ *
+ * Handles asset enqueuing and data localization for the Instagram sidebar panel.
+ * Only loads on post edit screens to avoid conflicts.
+ *
+ * @package Post_to_Instagram
+ */
+
 if ( ! defined( 'WPINC' ) ) {
 	die;
 }
 
+/**
+ * PTI_Admin_UI Class
+ *
+ * Manages Gutenberg editor integration and asset loading.
+ */
 class PTI_Admin_UI {
 
     public function __construct() {
         add_action( 'enqueue_block_editor_assets', array( $this, 'enqueue_editor_assets' ) );
-        // For Classic Editor, you might use a different hook like 'add_meta_boxes'
-        // and then enqueue scripts via 'admin_enqueue_scripts' with a check for the current screen.
     }
 
+    /**
+     * Enqueue assets for Gutenberg editor.
+     *
+     * Loads React components, localizes data, and extracts post images.
+     */
     public function enqueue_editor_assets() {
         global $pagenow;
 
-        // Only load on post edit screens (new or existing)
         if ( ! ( $pagenow == 'post.php' || $pagenow == 'post-new.php' ) ) {
             return;
         }
-
-        // Enqueue main script
-        $script_asset_path = PTI_PLUGIN_DIR . 'admin/assets/js/post-editor.asset.php';
-        $script_asset = file_exists( $script_asset_path )
-            ? require( $script_asset_path )
-            : array( 'dependencies' => array('wp-plugins', 'wp-edit-post', 'wp-element', 'wp-components', 'wp-data', 'wp-hooks', 'wp-api-fetch', 'wp-media-utils', 'wp-i18n'), 'version' => filemtime( PTI_PLUGIN_DIR . 'admin/assets/js/post-editor.js' ) );
+        $script_asset = require PTI_PLUGIN_DIR . 'admin/assets/js/post-editor.asset.php';
 
         wp_enqueue_script(
             'pti-post-editor-script',
@@ -33,13 +43,9 @@ class PTI_Admin_UI {
             $script_asset['version']
         );
 
-        // Ensure all media scripts (including gallery) are loaded
-        if ( function_exists( 'wp_enqueue_media' ) ) {
-            wp_enqueue_media();
-        }
+        wp_enqueue_media();
         wp_enqueue_script('media-gallery');
 
-        // Enqueue styles
         wp_enqueue_style(
             'pti-admin-styles',
             PTI_PLUGIN_URL . 'admin/assets/css/admin-styles.css',
@@ -47,31 +53,27 @@ class PTI_Admin_UI {
             filemtime( PTI_PLUGIN_DIR . 'admin/assets/css/admin-styles.css' )
         );
 
-        // Collect all image IDs used in the post content and featured image
+        // Extract all images from post content and featured image
         $post_id = get_the_ID();
         $image_ids = array();
         if ( $post_id ) {
             $post = get_post( $post_id );
             if ( $post ) {
-                // Featured image
                 $featured_id = get_post_thumbnail_id( $post_id );
                 if ( $featured_id ) {
                     $image_ids[] = $featured_id;
                 }
-                // Parse Gutenberg image blocks
                 if ( has_blocks( $post->post_content ) ) {
                     $blocks = parse_blocks( $post->post_content );
                     foreach ( $blocks as $block ) {
                         if ( $block['blockName'] === 'core/image' && !empty($block['attrs']['id']) ) {
                             $image_ids[] = $block['attrs']['id'];
                         }
-                        // Gallery block
                         if ( $block['blockName'] === 'core/gallery' && !empty($block['attrs']['ids']) && is_array($block['attrs']['ids']) ) {
                             $image_ids = array_merge($image_ids, $block['attrs']['ids']);
                         }
                     }
                 }
-                // Fallback: parse <img> tags for classic editor
                 if ( preg_match_all( '/wp-image-([0-9]+)/', $post->post_content, $matches ) ) {
                     $image_ids = array_merge( $image_ids, $matches[1] );
                 }
@@ -79,18 +81,9 @@ class PTI_Admin_UI {
         }
         $image_ids = array_unique( array_map( 'intval', $image_ids ) );
 
-        // Get shared image IDs for this post
         $shared_meta = get_post_meta($post_id, '_pti_instagram_shared_images', true);
-        $shared_image_ids = array();
-        if (is_array($shared_meta)) {
-            foreach ($shared_meta as $item) {
-                if (isset($item['image_id'])) {
-                    $shared_image_ids[] = intval($item['image_id']);
-                }
-            }
-        }
+        $shared_image_ids = is_array($shared_meta) ? array_column($shared_meta, 'image_id') : array();
 
-        // Localize script with data
         $localized_data = array(
             'ajax_url'                  => admin_url( 'admin-ajax.php' ),
             'nonce_save_app_creds'      => wp_create_nonce( 'pti_save_app_creds_nonce' ),
