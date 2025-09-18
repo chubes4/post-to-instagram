@@ -12,19 +12,84 @@ import { calculateCenterCrop } from '../utils/cropUtils';
 function useInstagramPostActions() {
     const [isProcessing, setIsProcessing] = useState(false);
     const [processingMessage, setProcessingMessage] = useState('');
-    const isPosting = useRef(false);
 
     /**
      * Post images to Instagram immediately.
      *
      * Crops images, uploads to temp storage, then posts via Instagram API.
-     * Uses atomic protection against race conditions.
      */
-    const postToInstagram = useCallback(async ({ postId, images, caption, aspectRatio, imageCropData, rotation, nonce }) => {
-        if (isPosting.current) {
-            return;
+    // Sequential polling state (avoid overlapping network requests)
+    const pollingActiveRef = useRef(false);
+    const processingKeyRef = useRef(null);
+    const clearPolling = () => {
+        pollingActiveRef.current = false;
+        processingKeyRef.current = null;
+    };
+
+    const pollProcessingStatus = useCallback(async () => {
+        if (!processingKeyRef.current) return;
+        if (pollingActiveRef.current) return; // Guard against accidental re-entry
+        pollingActiveRef.current = true;
+        try {
+            while (pollingActiveRef.current && processingKeyRef.current) {
+                let statusResp;
+                try {
+                    statusResp = await wp.apiFetch({
+                        path: `/pti/v1/post-status?processing_key=${encodeURIComponent(processingKeyRef.current)}`,
+                        method: 'GET'
+                    });
+                } catch (err) {
+                    // Network or fetch error: stop polling and surface notice
+                    clearPolling();
+                    setIsProcessing(false);
+                    if (window.wp?.data?.dispatch) {
+                        window.wp.data.dispatch('core/notices').createNotice('error', err.message || __('Error polling Instagram status.', 'post-to-instagram'), { isDismissible: true });
+                    }
+                    break;
+                }
+
+                if (!statusResp) break;
+
+                if (statusResp.status === 'publishing') {
+                    setProcessingMessage(__('Finalizing publish on Instagram...', 'post-to-instagram'));
+                } else if (statusResp.status === 'processing') {
+                    const ready = statusResp.ready || 0;
+                    const total = statusResp.total || 0;
+                    setProcessingMessage(`${__('Instagram processing containers', 'post-to-instagram')} ${ready}/${total}...`);
+                } else if (statusResp.status === 'completed') {
+                    clearPolling();
+                    setProcessingMessage(__('Successfully posted to Instagram!', 'post-to-instagram'));
+                    setIsProcessing(false);
+                    if (window.wp?.data?.dispatch) {
+                        window.wp.data.dispatch('core/notices').createNotice('success', __('Successfully posted to Instagram!', 'post-to-instagram'), { isDismissible: true });
+                    }
+                    break;
+                } else if (statusResp.status === 'error') {
+                    clearPolling();
+                    setIsProcessing(false);
+                    if (window.wp?.data?.dispatch) {
+                        window.wp.data.dispatch('core/notices').createNotice('error', statusResp.message || __('Error during Instagram processing.', 'post-to-instagram'), { isDismissible: true });
+                    }
+                    break;
+                } else if (statusResp.status === 'not_found') {
+                    clearPolling();
+                    setIsProcessing(false);
+                    if (window.wp?.data?.dispatch) {
+                        window.wp.data.dispatch('core/notices').createNotice('error', statusResp.message || __('Processing key not found.', 'post-to-instagram'), { isDismissible: true });
+                    }
+                    break;
+                }
+
+                // Wait 4 seconds before next poll (sequential, no overlap)
+                await new Promise(r => setTimeout(r, 4000));
+            }
+        } finally {
+            // If loop exits without clearing (e.g., natural completion), ensure flag resets
+            pollingActiveRef.current = false;
         }
-        isPosting.current = true;
+    }, [setProcessingMessage]);
+
+    const postToInstagram = useCallback(async ({ postId, images, caption, aspectRatio, imageCropData, rotation, nonce }) => {
         setIsProcessing(true);
         try {
             const tempUrls = [];
@@ -40,6 +105,7 @@ function useInstagramPostActions() {
                 const formData = new FormData();
                 const fileName = 'cropped-' + (img.url.split('/').pop() || 'image.jpg');
                 formData.append('cropped_image', croppedBlob, fileName);
+                formData.append('_wpnonce', nonce);
                 const response = await wp.apiFetch({
                     path: '/pti/v1/upload-cropped-image',
                     method: 'POST',
@@ -63,6 +129,19 @@ function useInstagramPostActions() {
                     _wpnonce: nonce,
                 },
             });
+            // If backend indicates async processing, start polling
+            if (postResponse.status === 'processing' || postResponse.processing_key) {
+                const processingKey = postResponse.processing_key;
+                if (!processingKey) {
+                    throw new Error(__('Processing key missing from async response.', 'post-to-instagram'));
+                }
+                setProcessingMessage(__('Uploading complete. Waiting for Instagram processing...', 'post-to-instagram'));
+
+                processingKeyRef.current = processingKey;
+                pollProcessingStatus();
+                return postResponse;
+            }
+
             const isSuccess = postResponse.success === true ||
                              (postResponse.data && postResponse.data.success === true) ||
                              (!postResponse.success && !postResponse.message && postResponse.media_id);
@@ -78,14 +157,13 @@ function useInstagramPostActions() {
             if (window.wp && window.wp.data && window.wp.data.dispatch) {
                 window.wp.data.dispatch('core/notices').createNotice('success', __('Successfully posted to Instagram!', 'post-to-instagram'), { isDismissible: true });
             }
-            isPosting.current = false;
             return postResponse;
         } catch (error) {
+            clearPolling();
             setIsProcessing(false);
             if (window.wp && window.wp.data && window.wp.data.dispatch) {
                 window.wp.data.dispatch('core/notices').createNotice('error', error.message || __('Error posting to Instagram.', 'post-to-instagram'), { isDismissible: true });
             }
-            isPosting.current = false;
             throw error;
         }
     }, []);
@@ -156,4 +234,4 @@ function useInstagramPostActions() {
 }
 
 export default useInstagramPostActions;
-export { useInstagramPostActions, useInstagramPostActions as useInstagramPost, useInstagramPostActions as defaultHook }; 
+export { useInstagramPostActions }; 

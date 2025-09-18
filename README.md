@@ -29,6 +29,9 @@ npm install
 # Build assets
 npm run build
 
+# Create production distribution (optional)
+./build.sh
+
 # Or start development mode
 npm run start
 ```
@@ -67,8 +70,9 @@ All endpoints use `/wp-json/pti/v1/` namespace:
 **Image Processing**
 - `POST /upload-cropped-image` - Upload processed images to temp directory
 
-**Posting**
-- `POST /post-now` - Immediate Instagram posting
+**Posting & Processing**
+- `POST /post-now` - Immediate Instagram posting (may return 202 with `processing_key` if containers still processing)
+- `GET /post-status?processing_key=...` - Poll async status (`processing`, `publishing`, `completed`, `error`)
 - `POST /schedule-post` - Schedule post for later
 - `GET /scheduled-posts` - Retrieve scheduled posts
 
@@ -90,8 +94,11 @@ All endpoints use `/wp-json/pti/v1/` namespace:
 
 1. **Authentication**: OAuth popup → token exchange → long-lived access token
 2. **Image Selection**: Post content analysis → user selection → drag-and-drop ordering
-3. **Processing**: Client-side cropping → temp file upload → Instagram API calls
-4. **Posting**: Media container creation → status polling → publication
+3. **Processing**: Client-side cropping → temp file uploads (temp URLs stored only client-side) → Instagram media container creation
+4. **Async Transition**: If any container status is `IN_PROGRESS`, backend stores minimal transient (IDs + statuses) and returns 202 with `processing_key`
+5. **Sequential Polling**: Frontend performs awaited polling every ~4s (no overlapping requests) via `/post-status`
+6. **Publish Lock**: When all containers become `FINISHED`, backend acquires a transient-based publish lock (stale after 180s) and publishes (single or carousel)
+7. **Completion**: Post meta `_pti_instagram_shared_images` updated, success event dispatched, UI shows final success message
 
 ### Configuration
 
@@ -106,14 +113,18 @@ All endpoints use `/wp-json/pti/v1/` namespace:
 # Watch mode for development
 npm run start
 
-# Production build (automatically creates distribution zip)
+# Production build assets only
 npm run build
+
+# Create production distribution zip
+./build.sh
 ```
 
 ### Security
 
-- All REST endpoints protected with WordPress nonces
-- Capability checks: `edit_posts` for posting, `manage_options` for settings
+- All REST endpoints protected with WordPress nonces + capability checks (`edit_posts`, `manage_options`)
+- Transient-based publish lock prevents duplicate publish in multi-tab or race scenarios (stale takeover after 180s)
+- Sequential polling eliminates overlapping status requests client-side
 - Temporary files auto-cleanup after 24 hours
 - OAuth state validation with CSRF protection
 
@@ -125,8 +136,9 @@ npm run build
 - Verify Instagram app permissions and redirect URI
 - Ensure temporary directory is writable
 
-**Debug Mode**
-Debug logging is available in the Instagram API class for troubleshooting API responses.
+**Debug / Observability**
+- Inspect Network tab for `POST /post-now` 202 responses and subsequent `GET /post-status` cycles (`processing` → `publishing` → `completed`).
+- WordPress `debug.log` will contain container creation / publish errors and stale lock recovery events.
 
 ## License
 

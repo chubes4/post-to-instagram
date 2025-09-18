@@ -5,9 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Development Commands
 
 ### Build & Development
-- `npm run build` - Build production assets and automatically create distribution zip
+- `npm run build` - Build production assets only
 - `npm run start` - Start development mode with watch
-- `./build-dist.sh` - Create production-ready plugin distribution zip (called automatically by npm run build)
+- `./build.sh` - Create production-ready plugin distribution zip with asset build and file packaging
 
 ### Project Structure
 No specific test framework is configured. Check with the user before implementing tests.
@@ -39,18 +39,23 @@ This is a WordPress plugin for posting images from WordPress posts to Instagram 
 - `inc/Assets/src/js/utils/` - Utility functions (cropImage, cropUtils, getPostImageIds)
 
 ### REST API Endpoints (/pti/v1/)
+### REST API Endpoints (/pti/v1/)
 - **Authentication**: `/auth/status`, `/auth/credentials`, `/disconnect`
 - **Image Processing**: `/upload-cropped-image` (uploads to temp directory)
-- **Posting**: `/post-now` (immediate posting), `/schedule-post`, `/scheduled-posts`
+- **Posting & Async**: `/post-now` (may return 202 with `processing_key`), `/post-status` (polls `processing|publishing|completed|error`), `/schedule-post`, `/scheduled-posts`
 - **Security**: All endpoints use WordPress nonces and capability checks
 
-### Key Features
-- OAuth 2.0 Instagram authentication
-- Block editor integration with sidebar panel
-- Image selection from post content (Gutenberg blocks + featured image)
-- Drag-and-drop image reordering for carousels (max 10 images)
-- Image cropping to Instagram aspect ratios (1:1, 4:5, 3:4, 1.91:1)
-- Immediate posting and scheduling with WP-Cron
+### Data Flow & Processing Model
+**Async Posting Architecture:**
+1. **Image Selection**: Gutenberg content analysis → user selection → drag-and-drop reordering
+2. **Client-Side Processing**: Cropping via canvas (`cropImage`, `cropUtils`) → blobs
+3. **Temporary Storage**: Blobs uploaded to `/wp-content/uploads/pti-temp/`
+4. **Container Creation**: Server creates Instagram media containers; collects initial `status_code`
+5. **Transient State**: If any container `IN_PROGRESS`, store minimal transient: container ids + statuses, ready/pending arrays, lock fields (`publishing`, `publishing_started`, `published`)
+6. **Sequential Polling**: Frontend polls `/post-status` every ~4s with awaited loop (no overlapping HTTP requests)
+7. **Publish Lock**: When all containers `FINISHED`, server acquires transient-based lock (stale after 180s) before publishing (carousel or single) to prevent duplicate race conditions
+8. **Completion**: Shared images meta updated; transient removed; success action fired
+**Race Condition Protection**: Transient publish lock + stale takeover + sequential client polling eliminate duplicate publish attempts
 - Temporary image storage in `/wp-content/uploads/pti-temp/`
 
 ### Data Flow & Processing Model
@@ -86,8 +91,8 @@ This is a WordPress plugin for posting images from WordPress posts to Instagram 
 ### Build System & Development Workflow
 - **Webpack**: Uses `@wordpress/scripts` with custom configuration disabling Babel caching for development
 - **Source Maps**: Different strategies for development vs production builds
-- **Asset Output**: Builds to `admin/assets/js/` directory with hash-based filenames
-- **Distribution**: `./build-dist.sh` creates clean plugin zip excluding dev files (node_modules, src, config)
+- **Asset Output**: Builds to `inc/Assets/dist/js/` directory with hash-based filenames
+- **Distribution**: `./build.sh` creates clean plugin zip excluding dev files (node_modules, src, config)
 
 ### Development Notes
 - **Asset Enqueuing**: Only loads on post edit screens (`post.php`, `post-new.php`) to avoid conflicts

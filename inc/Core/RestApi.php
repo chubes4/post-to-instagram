@@ -1,10 +1,6 @@
 <?php
 /**
- * Instagram REST API Integration
- *
- * Centralized REST API endpoint management for Instagram integration.
- * Provides secure endpoints for authentication, image upload, posting, and scheduling
- * using action-based architecture patterns.
+ * WordPress REST API endpoints for Instagram authentication and posting.
  *
  * @package PostToInstagram\Core
  */
@@ -16,26 +12,20 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 /**
- * RestApi Class
- *
- * Complete REST API endpoint system via WordPress action hooks.
+ * WordPress REST API endpoint registration and handlers.
  */
 class RestApi {
 
     const REST_API_NAMESPACE = 'pti/v1';
 
     /**
-     * Register all REST API endpoints.
+     * Register WordPress action hooks.
      */
     public static function register() {
         add_action( 'rest_api_init', [ __CLASS__, 'register_routes' ] );
     }
 
-    /**
-     * Register all REST API routes.
-     */
     public static function register_routes() {
-        // Authentication endpoints
         register_rest_route(
             self::REST_API_NAMESPACE,
             '/auth/status',
@@ -59,6 +49,10 @@ class RestApi {
                         'type' => 'string',
                     ),
                     'app_secret' => array(
+                        'required' => true,
+                        'type' => 'string',
+                    ),
+                    '_wpnonce' => array(
                         'required' => true,
                         'type' => 'string',
                     ),
@@ -125,6 +119,12 @@ class RestApi {
                 'methods'             => \WP_REST_Server::CREATABLE,
                 'callback'            => [ __CLASS__, 'handle_upload_cropped_image' ],
                 'permission_callback' => function() { return current_user_can( 'edit_posts' ); },
+                'args'                => array(
+                    '_wpnonce' => array(
+                        'required' => true,
+                        'type' => 'string',
+                    ),
+                ),
             )
         );
 
@@ -158,6 +158,10 @@ class RestApi {
                         'required' => true,
                         'type' => 'string',
                     ),
+                    '_wpnonce' => array(
+                        'required' => true,
+                        'type' => 'string',
+                    ),
                 ),
             )
         );
@@ -173,6 +177,23 @@ class RestApi {
                     'post_id' => array(
                         'required' => false,
                         'type' => 'integer',
+                    ),
+                ),
+            )
+        );
+
+        // Async post status route
+        register_rest_route(
+            self::REST_API_NAMESPACE,
+            '/post-status',
+            array(
+                'methods'             => \WP_REST_Server::READABLE,
+                'callback'            => [ __CLASS__, 'handle_post_status' ],
+                'permission_callback' => function() { return current_user_can( 'edit_posts' ); },
+                'args'                => array(
+                    'processing_key' => array(
+                        'required' => true,
+                        'type' => 'string',
                     ),
                 ),
             )
@@ -243,6 +264,10 @@ class RestApi {
         $options = get_option( 'pti_settings', array() );
         $options['auth_details'] = array();
         update_option( 'pti_settings', $options );
+
+        // Clear any scheduled token refresh
+        \PostToInstagram\Core\Auth::clear_token_refresh();
+
         return new \WP_REST_Response( array( 'success' => true, 'message' => __( 'Account disconnected successfully.', 'post-to-instagram' ) ), 200 );
     }
 
@@ -257,6 +282,11 @@ class RestApi {
         $image_urls = $request->get_param( 'image_urls' );
         $image_ids = $request->get_param( 'image_ids' );
         $caption = $request->get_param( 'caption' );
+        $nonce = $request->get_param( '_wpnonce' );
+
+        if ( ! wp_verify_nonce( $nonce, 'pti_post_media_nonce' ) ) {
+            return new \WP_Error( 'invalid_nonce', __( 'Invalid nonce.', 'post-to-instagram' ), [ 'status' => 403 ] );
+        }
 
         if ( empty( $post_id ) || empty( $image_urls ) || empty( $image_ids ) ) {
             return new \WP_Error(
@@ -277,20 +307,19 @@ class RestApi {
             }
         }
 
-        // Set up result containers
-        $result = null;
-        $error = null;
+    // Set up result containers
+    $result = null;
+    $error = null;
+    $processing = null;
 
         // Set up event listeners for success/error
-        $success_handler = function( $success_result ) use ( &$result ) {
-            $result = $success_result;
-        };
-        $error_handler = function( $error_result ) use ( &$error ) {
-            $error = $error_result;
-        };
+        $success_handler = function( $success_result ) use ( &$result ) { $result = $success_result; };
+        $error_handler = function( $error_result ) use ( &$error ) { $error = $error_result; };
+        $processing_handler = function( $processing_result ) use ( &$processing ) { $processing = $processing_result; };
 
         add_action( 'pti_post_success', $success_handler );
         add_action( 'pti_post_error', $error_handler );
+        add_action( 'pti_post_processing', $processing_handler );
 
         // Trigger the posting action
         do_action( 'pti_post_to_instagram', [
@@ -303,8 +332,20 @@ class RestApi {
         // Clean up event listeners
         remove_action( 'pti_post_success', $success_handler );
         remove_action( 'pti_post_error', $error_handler );
+        remove_action( 'pti_post_processing', $processing_handler );
 
         // Return response based on results
+        if ( $processing ) {
+            return new \WP_REST_Response( [
+                'success' => true,
+                'status' => 'processing',
+                'message' => $processing['message'] ?? 'Processing containers...',
+                'processing_key' => $processing['processing_key'] ?? null,
+                'ready' => $processing['ready_containers'] ?? null,
+                'pending' => $processing['pending_containers'] ?? null,
+                'total' => $processing['total_containers'] ?? null,
+            ], 202 );
+        }
         if ( $result ) {
             return new \WP_REST_Response( [
                 'success' => true,
@@ -312,7 +353,6 @@ class RestApi {
                 'permalink' => isset( $result['permalink'] ) ? $result['permalink'] : null,
                 'media_id' => isset( $result['media_id'] ) ? $result['media_id'] : null,
                 'warning' => isset( $result['warning'] ) ? $result['warning'] : null,
-                'response' => isset( $result['response'] ) ? $result['response'] : null,
             ], 200 );
         } elseif ( $error ) {
             return new \WP_Error( 'pti_instagram_error', $error['message'] ?? 'Failed to post to Instagram.', [ 'status' => 500 ] );
@@ -328,6 +368,10 @@ class RestApi {
      * @return \WP_REST_Response|\WP_Error Response or error
      */
     public static function handle_upload_cropped_image( $request ) {
+        $nonce = $request->get_param( '_wpnonce' );
+        if ( ! wp_verify_nonce( $nonce, 'pti_post_media_nonce' ) ) { // reuse posting nonce for uploads
+            return new \WP_Error( 'invalid_nonce', __( 'Invalid nonce.', 'post-to-instagram' ), [ 'status' => 403 ] );
+        }
         if ( ! isset( $_FILES['cropped_image'] ) ) {
             return new \WP_Error(
                 'pti_missing_file',
@@ -407,6 +451,10 @@ class RestApi {
     public static function handle_schedule_post( $request ) {
         $post_id = $request->get_param( 'post_id' );
         $params = $request->get_params();
+        $nonce = isset( $params['_wpnonce'] ) ? $params['_wpnonce'] : '';
+        if ( ! wp_verify_nonce( $nonce, 'pti_schedule_media_nonce' ) ) {
+            return new \WP_Error( 'invalid_nonce', __( 'Invalid nonce.', 'post-to-instagram' ), [ 'status' => 403 ] );
+        }
 
         // Validate required parameters
         if ( empty( $post_id ) || empty( $params['image_ids'] ) || empty( $params['schedule_time'] ) ) {
@@ -496,5 +544,75 @@ class RestApi {
             }
             return new \WP_REST_Response( $all_scheduled_posts, 200 );
         }
+    }
+
+    /**
+     * Handle async Instagram post status polling.
+     *
+     * @param \WP_REST_Request $request Request object
+     * @return \WP_REST_Response|\WP_Error
+     */
+    public static function handle_post_status( $request ) {
+        $processing_key = sanitize_text_field( $request->get_param( 'processing_key' ) );
+        if ( empty( $processing_key ) ) {
+            return new \WP_Error( 'pti_missing_processing_key', __( 'Processing key is required.', 'post-to-instagram' ), [ 'status' => 400 ] );
+        }
+
+        $transient_data = get_transient( $processing_key );
+
+        // Capture result events from Post methods
+        $progress_payload = null;
+        $success_payload = null;
+        $error_payload = null;
+
+        $progress_handler = function( $payload ) use ( &$progress_payload, $processing_key ) {
+            if ( isset( $payload['processing_key'] ) && $payload['processing_key'] === $processing_key ) {
+                $progress_payload = $payload;
+            }
+        };
+        $success_handler = function( $payload ) use ( &$success_payload ) { $success_payload = $payload; };
+        $error_handler = function( $payload ) use ( &$error_payload ) { $error_payload = $payload; };
+
+        add_action( 'pti_post_processing', $progress_handler );
+        add_action( 'pti_post_success', $success_handler );
+        add_action( 'pti_post_error', $error_handler );
+
+        if ( $transient_data ) {
+            \PostToInstagram\Core\Actions\Post::check_processing_status( $processing_key );
+        } else {
+            // If transient missing, either expired or already published—cannot know state unless success already stored.
+            remove_action( 'pti_post_processing', $progress_handler );
+            remove_action( 'pti_post_success', $success_handler );
+            remove_action( 'pti_post_error', $error_handler );
+            return new \WP_REST_Response( [ 'success' => false, 'status' => 'not_found', 'message' => __( 'Processing key not found (expired or invalid).', 'post-to-instagram' ) ], 404 );
+        }
+
+        remove_action( 'pti_post_processing', $progress_handler );
+        remove_action( 'pti_post_success', $success_handler );
+        remove_action( 'pti_post_error', $error_handler );
+
+        if ( $error_payload ) {
+            return new \WP_REST_Response( [ 'success' => false, 'status' => 'error', 'message' => $error_payload['message'] ?? __( 'Error during Instagram post processing.', 'post-to-instagram' ) ], 200 );
+        }
+        if ( $success_payload ) {
+            return new \WP_REST_Response( array_merge( [ 'success' => true, 'status' => 'completed' ], $success_payload ), 200 );
+        }
+        if ( $progress_payload ) {
+            // Include publishing lock state if present in transient
+            $transient_snapshot = get_transient( $processing_key );
+            $publishing = ( isset( $transient_snapshot['publishing'] ) && $transient_snapshot['publishing'] && empty( $transient_snapshot['published'] ) );
+            return new \WP_REST_Response( [
+                'success' => true,
+                'status' => $publishing ? 'publishing' : 'processing',
+                'message' => $progress_payload['message'] ?? __( 'Processing...', 'post-to-instagram' ),
+                'processing_key' => $processing_key,
+                'total' => $progress_payload['total_containers'] ?? null,
+                'ready' => $progress_payload['ready_containers'] ?? null,
+                'pending' => $progress_payload['pending_containers'] ?? null,
+                'publishing' => $publishing,
+            ], 200 );
+        }
+
+        return new \WP_REST_Response( [ 'success' => true, 'status' => 'unknown', 'message' => __( 'No definitive state reported.', 'post-to-instagram' ) ], 200 );
     }
 }
