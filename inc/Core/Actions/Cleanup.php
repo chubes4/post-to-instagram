@@ -1,10 +1,6 @@
 <?php
 /**
- * Instagram Temp File Cleanup Action Handler
- *
- * Centralized action-based temporary file cleanup system. Manages automatic
- * cleanup of cropped images in /wp-content/uploads/pti-temp/ via daily WP-Cron.
- * Includes CRON registration and manual cleanup trigger capabilities.
+ * Temporary file cleanup with daily WP-Cron for pti-temp directory.
  *
  * @package PostToInstagram\Core\Actions
  */
@@ -16,16 +12,14 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 /**
- * Cleanup Class
- *
- * Complete temporary file cleanup system via WordPress action hooks.
+ * Temporary file cleanup system with WP-Cron integration.
  */
 class Cleanup {
 
     const CRON_HOOK = 'pti_temp_cleanup_cron';
 
     /**
-     * Register all cleanup action hooks and CRON integration.
+     * Register WordPress action hooks and WP-Cron integration.
      */
     public static function register() {
         // Register cleanup actions

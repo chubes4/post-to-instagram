@@ -4,7 +4,7 @@
  * Provides image cropping, aspect ratio selection, and reordering for Instagram carousel posts.
  * Supports immediate posting and scheduling with atomic protection against double-clicks.
  */
-import { useState, useCallback, useEffect, useRef } from '@wordpress/element';
+import { useState, useCallback, useEffect } from '@wordpress/element';
 import { Modal, Button, SelectControl, Spinner, DateTimePicker } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
 import Cropper from 'react-easy-crop';
@@ -102,7 +102,6 @@ const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostCom
     const [rotation, setRotation] = useState(0);
     const [showScheduleForm, setShowScheduleForm] = useState(false);
     const [scheduleDateTime, setScheduleDateTime] = useState(new Date());
-    const isPosting = useRef(false);
     const currentImage = images[currentIndex];
 
     const {
@@ -214,14 +213,9 @@ const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostCom
 
 
     /**
-     * Post immediately to Instagram with atomic protection.
+     * Post immediately to Instagram.
      */
     const handleConfirmAndPost = async () => {
-        if (isPosting.current) {
-            return;
-        }
-        isPosting.current = true;
-        
         try {
             await postToInstagram({
                 postId,
@@ -235,8 +229,6 @@ const CropImageModal = ({ images, setImages, caption, postId, onClose, onPostCom
             onPostComplete();
         } catch (error) {
             alert(__('Error posting to Instagram:', 'post-to-instagram') + ' ' + error.message);
-        } finally {
-            isPosting.current = false;
         }
     };
 

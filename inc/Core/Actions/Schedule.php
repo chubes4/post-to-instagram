@@ -1,10 +1,6 @@
 <?php
 /**
- * Instagram Schedule Action Handler
- *
- * Centralized action-based Instagram scheduling system. Handles both storing
- * scheduled posts and processing them via WP-Cron. Includes CRON registration,
- * image processing, and complete scheduling workflow.
+ * Instagram post scheduling with WP-Cron integration and image processing.
  *
  * @package PostToInstagram\Core\Actions
  */
@@ -16,9 +12,7 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 /**
- * Schedule Class
- *
- * Complete Instagram scheduling system via WordPress action hooks.
+ * Instagram scheduling system with WP-Cron integration.
  */
 class Schedule {
 
@@ -26,7 +20,7 @@ class Schedule {
     const CRON_INTERVAL_NAME = 'every_five_minutes';
 
     /**
-     * Register all scheduling action hooks and CRON integration.
+     * Register WordPress action hooks and WP-Cron integration.
      */
     public static function register() {
         // Register scheduling actions

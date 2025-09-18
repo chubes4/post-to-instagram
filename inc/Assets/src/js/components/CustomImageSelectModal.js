@@ -76,6 +76,7 @@ const CustomImageSelectModal = ({
                 id: img.id,
                 url: img.source_url,
                 originalUrl: img.source_url,
+                thumbnailUrl: img.media_details?.sizes?.thumbnail?.source_url || img.source_url,
                 alt: img.alt_text,
                 width: img.media_details?.width,
                 height: img.media_details?.height,

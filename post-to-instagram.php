@@ -12,14 +12,9 @@
  * Domain Path:       /languages
  */
 
-// If this file is called directly, abort.
 if ( ! defined( 'WPINC' ) ) {
 	die;
 }
-
-/**
- * Define Core Plugin Constants
- */
 define( 'PTI_VERSION', '1.0.0' );
 define( 'PTI_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
 define( 'PTI_PLUGIN_URL', plugin_dir_url( __FILE__ ) );
@@ -28,7 +23,7 @@ define( 'PTI_MIN_WP_VERSION', '5.0' );
 define( 'PTI_MIN_PHP_VERSION', '7.4' );
 
 /**
- * The code that runs during plugin activation.
+ * Plugin activation handler with version requirements.
  */
 function pti_activate_plugin() {
     if ( version_compare( get_bloginfo( 'version' ), PTI_MIN_WP_VERSION, '<' ) ) {
@@ -50,7 +45,7 @@ function pti_activate_plugin() {
 register_activation_hook( PTI_PLUGIN_FILE, 'pti_activate_plugin' );
 
 /**
- * The code that runs during plugin deactivation.
+ * Plugin deactivation handler cleans up scheduled events.
  */
 function pti_deactivate_plugin() {
     PostToInstagram\Core\Actions\Schedule::on_deactivation();
@@ -59,12 +54,11 @@ function pti_deactivate_plugin() {
 register_deactivation_hook( PTI_PLUGIN_FILE, 'pti_deactivate_plugin' );
 
 /**
- * Autoloader for plugin classes.
+ * PSR-4 autoloader with legacy class support.
  *
- * @param string $class_name The name of the class to load.
+ * @param string $class_name Class name to load.
  */
 function pti_autoloader( $class_name ) {
-	// Handle PSR-4 namespaced classes
 	if ( strpos( $class_name, 'PostToInstagram\\' ) === 0 ) {
 		$class_file = str_replace( 'PostToInstagram\\', '', $class_name );
 		$class_file = str_replace( '\\', '/', $class_file );
@@ -76,7 +70,6 @@ function pti_autoloader( $class_name ) {
 		}
 	}
 
-	// Handle legacy PTI_ classes
 	if ( strpos( $class_name, 'PTI_' ) !== 0 ) {
 		return;
 	}
@@ -96,20 +89,15 @@ function pti_autoloader( $class_name ) {
 spl_autoload_register( 'pti_autoloader' );
 
 /**
- * Initialize the plugin.
- *
- * Loads all the main plugin classes and features.
+ * Initialize plugin using centralized core architecture.
  */
 function pti_init_plugin() {
-    // Register core systems
+    PostToInstagram\Core\Auth::register();
     PostToInstagram\Core\RestApi::register();
-
-    // Register action-based systems
     PostToInstagram\Core\Actions\Post::register();
     PostToInstagram\Core\Actions\Schedule::register();
     PostToInstagram\Core\Actions\Cleanup::register();
 
-    // Register admin functionality
     if ( is_admin() ) {
         PostToInstagram\Core\Admin::register();
     }
@@ -118,7 +106,7 @@ add_action( 'plugins_loaded', 'pti_init_plugin' );
 
 
 /**
- * Setup OAuth routing.
+ * OAuth routing for Instagram authentication redirects.
  */
 function pti_setup_oauth_routing() {
     add_rewrite_rule('^pti-oauth/?$', 'index.php?pti_oauth=1', 'top');

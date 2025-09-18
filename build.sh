@@ -21,6 +21,13 @@ if [ -f "composer.json" ]; then
     composer install --no-dev --optimize-autoloader --no-interaction
 fi
 
+# Build Gutenberg editor assets
+if [ -f "package.json" ]; then
+    echo "🔨 Building Gutenberg editor assets..."
+    npm install > /dev/null
+    npx wp-scripts build inc/Assets/src/js/post-editor.js --output-path=inc/Assets/dist/js/
+fi
+
 # Copy files with exclusions from .buildignore
 echo "📁 Copying production files..."
 if [ -f ".buildignore" ]; then
@@ -59,6 +66,8 @@ ESSENTIAL_FILES=(
     "$DIST_DIR/$PLUGIN_SLUG/inc/Core/Actions/Schedule.php"
     "$DIST_DIR/$PLUGIN_SLUG/inc/Core/Actions/Cleanup.php"
     "$DIST_DIR/$PLUGIN_SLUG/auth/oauth-handler.html"
+    "$DIST_DIR/$PLUGIN_SLUG/inc/Assets/dist/js/post-editor.js"
+    "$DIST_DIR/$PLUGIN_SLUG/inc/Assets/dist/js/post-editor.asset.php"
 )
 
 for file in "${ESSENTIAL_FILES[@]}"; do

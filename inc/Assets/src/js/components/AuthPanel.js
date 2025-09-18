@@ -2,6 +2,10 @@ import { __ } from '@wordpress/i18n';
 import { Button, TextControl, Notice } from '@wordpress/components';
 import { useState, useEffect } from '@wordpress/element';
 
+/**
+ * Instagram authentication panel for App ID/Secret configuration.
+ * Handles credential saving and authentication status management.
+ */
 const AuthPanel = ({
     isConfigured,
     isAuthenticated,
@@ -19,7 +23,6 @@ const AuthPanel = ({
     const [saving, setSaving] = useState(false);
     const [loadingAppId, setLoadingAppId] = useState(false);
 
-    // When entering edit mode, pre-fill App ID with savedAppId
     useEffect(() => {
         if (showEdit && savedAppId) {
             setAppId(savedAppId);
@@ -64,7 +67,6 @@ const AuthPanel = ({
             });
     };
 
-    // Show credentials form if not configured or editing
     if (!isConfigured || showEdit) {
         return (
             <form onSubmit={e => { e.preventDefault(); handleSaveCredentials(); }}>
@@ -116,7 +118,6 @@ const AuthPanel = ({
         );
     }
 
-    // If configured and not editing, show Edit API Credentials button (handled by parent now)
     return null;
 };
 

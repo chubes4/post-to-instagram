@@ -11,11 +11,11 @@ build.sh
 build-dist.sh
 composer.lock
 package-lock.json
-admin/assets/src/
+inc/Assets/src/
 webpack.config.js
 package.json
 *.log
 .gitignore
 .cursor
 *.zip
-dist/
+./dist/

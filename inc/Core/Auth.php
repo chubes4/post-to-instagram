@@ -1,10 +1,6 @@
 <?php
 /**
- * Instagram OAuth Authentication
- *
- * Centralized Instagram OAuth 2.0 authentication management. Handles OAuth flow,
- * token exchange, and authentication state using utility class pattern.
- * Manages both short-lived and long-lived access tokens with CSRF protection.
+ * Instagram OAuth 2.0 authentication with CSRF protection and token management.
  *
  * @package PostToInstagram\Core
  */
@@ -16,9 +12,7 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 /**
- * Auth Class
- *
- * Complete Instagram OAuth authentication system.
+ * Instagram OAuth authentication handler.
  */
 class Auth {
 
@@ -30,7 +24,7 @@ class Auth {
     /**
      * Check if Instagram App ID and Secret are configured.
      *
-     * @return bool True if both app_id and app_secret are set
+     * @return bool
      */
     public static function is_configured() {
         $options = get_option( 'pti_settings' );
@@ -42,7 +36,7 @@ class Auth {
     /**
      * Check if user has valid Instagram authentication.
      *
-     * @return bool True if access_token and user_id exist
+     * @return bool
      */
     public static function is_authenticated() {
         if ( ! self::is_configured() ) {
@@ -56,7 +50,7 @@ class Auth {
     /**
      * Get Instagram long-lived access token.
      *
-     * @return string|null Access token or null if not authenticated
+     * @return string|null
      */
     public static function get_access_token() {
         if ( ! self::is_authenticated() ) {
@@ -70,7 +64,7 @@ class Auth {
     /**
      * Get Instagram user ID.
      *
-     * @return string|null Instagram user ID or null if not authenticated
+     * @return string|null
      */
     public static function get_instagram_user_id() {
         if ( ! self::is_authenticated() ) {
@@ -84,7 +78,7 @@ class Auth {
     /**
      * Generate Instagram OAuth authorization URL with CSRF protection.
      *
-     * @return string Authorization URL or '#' if not configured
+     * @return string
      */
     public static function get_authorization_url() {
         if ( ! self::is_configured() ) {
@@ -232,7 +226,7 @@ class Auth {
         $username = null;
         $user_info_resp = wp_remote_get(
             self::INSTAGRAM_GRAPH_API_URL . "/{$instagram_user_id}?fields=username&access_token={$long_lived_token}",
-            array( 'timeout' => 20 )
+            array( 'timeout' => 40 )
         );
         if ( ! is_wp_error( $user_info_resp ) ) {
             $user_info_body = json_decode( wp_remote_retrieve_body( $user_info_resp ), true );
@@ -241,17 +235,208 @@ class Auth {
             }
         }
 
-        // Step 4: Store authentication credentials
+        // Step 4: Store authentication credentials with expiration timestamp
+        // Long-lived tokens last 60 days from creation
+        $expires_at = time() + ( 60 * 24 * 60 * 60 ); // 60 days from now
+
         $options = get_option( 'pti_settings', array() );
         $options['auth_details'] = array(
             'access_token' => $long_lived_token,
             'user_id'      => $instagram_user_id,
             'username'     => $username,
+            'expires_at'   => $expires_at,
+            'created_at'   => time(),
         );
         update_option( 'pti_settings', $options );
+
+        // Schedule automatic token refresh for 59 days from now
+        self::schedule_token_refresh();
 
         $handler_url = PTI_PLUGIN_URL . 'auth/oauth-handler.html?pti_auth_status=success';
         wp_redirect( $handler_url );
         exit;
+    }
+
+    /**
+     * Check if the current access token is expired or close to expiring.
+     *
+     * @param int $buffer_days Number of days before expiration to consider "close to expiring" (default: 7)
+     * @return bool True if token is expired or close to expiring
+     */
+    public static function is_token_expired( $buffer_days = 7 ) {
+        if ( ! self::is_authenticated() ) {
+            return true;
+        }
+
+        $options = get_option( 'pti_settings', array() );
+        $auth_details = isset( $options['auth_details'] ) ? $options['auth_details'] : array();
+
+        if ( empty( $auth_details['expires_at'] ) ) {
+            // If no expiration timestamp, assume it needs refresh
+            return true;
+        }
+
+        $expires_at = $auth_details['expires_at'];
+        $buffer_time = $buffer_days * 24 * 60 * 60; // Convert days to seconds
+        $expiry_threshold = $expires_at - $buffer_time;
+
+        return time() >= $expiry_threshold;
+    }
+
+    /**
+     * Refresh the Instagram access token.
+     *
+     * @return bool|array True on success, array with error details on failure
+     */
+    public static function refresh_access_token() {
+        $current_token = self::get_access_token();
+        if ( ! $current_token ) {
+            return array(
+                'success' => false,
+                'error' => 'No current access token found'
+            );
+        }
+
+        // Call Instagram's refresh token endpoint
+        $refresh_url = self::INSTAGRAM_GRAPH_API_URL . '/refresh_access_token';
+        $response = wp_remote_get(
+            add_query_arg(
+                array(
+                    'grant_type' => 'ig_refresh_token',
+                    'access_token' => $current_token,
+                ),
+                $refresh_url
+            ),
+            array( 'timeout' => 30 )
+        );
+
+        if ( is_wp_error( $response ) ) {
+            return array(
+                'success' => false,
+                'error' => 'HTTP request failed: ' . $response->get_error_message()
+            );
+        }
+
+        $status_code = wp_remote_retrieve_response_code( $response );
+        $body = wp_remote_retrieve_body( $response );
+        $data = json_decode( $body, true );
+
+        if ( $status_code !== 200 || empty( $data['access_token'] ) ) {
+            $error_message = 'Token refresh failed';
+            if ( isset( $data['error']['message'] ) ) {
+                $error_message .= ': ' . $data['error']['message'];
+            }
+            if ( isset( $data['error']['code'] ) ) {
+                $error_message .= ' (Code: ' . $data['error']['code'] . ')';
+            }
+            $error_message .= ' Status: ' . $status_code;
+            $error_message .= ' Response: ' . $body;
+
+            return array(
+                'success' => false,
+                'error' => $error_message,
+                'response' => $data,
+                'status_code' => $status_code
+            );
+        }
+
+        // Update stored token with new expiration
+        $new_token = $data['access_token'];
+        $new_expires_at = time() + ( 60 * 24 * 60 * 60 ); // 60 days from now
+
+        $options = get_option( 'pti_settings', array() );
+        if ( isset( $options['auth_details'] ) ) {
+            $options['auth_details']['access_token'] = $new_token;
+            $options['auth_details']['expires_at'] = $new_expires_at;
+            $options['auth_details']['refreshed_at'] = time();
+            update_option( 'pti_settings', $options );
+
+            // Schedule next automatic refresh for 59 days from now
+            self::schedule_token_refresh();
+        }
+
+        return array(
+            'success' => true,
+            'message' => 'Access token refreshed successfully',
+            'new_token' => $new_token,
+            'expires_at' => $new_expires_at
+        );
+    }
+
+    /**
+     * Ensure we have a valid, non-expired access token.
+     * Automatically refresh if needed.
+     *
+     * @return bool|array True if token is valid, array with error details if refresh failed
+     */
+    public static function ensure_valid_token() {
+        if ( ! self::is_authenticated() ) {
+            return array(
+                'success' => false,
+                'error' => 'Not authenticated'
+            );
+        }
+
+        if ( ! self::is_token_expired() ) {
+            // Token is still valid
+            return true;
+        }
+
+        // Token is expired or close to expiring, attempt refresh
+        return self::refresh_access_token();
+    }
+
+    /**
+     * Schedule automatic token refresh for 59 days from now.
+     * Clears any existing scheduled refresh first.
+     */
+    public static function schedule_token_refresh() {
+        // Clear any existing scheduled refresh
+        wp_clear_scheduled_hook( 'pti_refresh_token' );
+
+        // Schedule refresh for 59 days from now (1 day before expiration)
+        $refresh_time = time() + ( 59 * DAY_IN_SECONDS );
+        wp_schedule_single_event( $refresh_time, 'pti_refresh_token' );
+    }
+
+    /**
+     * Handle scheduled token refresh via WP-Cron.
+     * Called automatically 59 days after token creation/refresh.
+     */
+    public static function handle_scheduled_refresh() {
+        // Only proceed if we have valid authentication
+        if ( ! self::is_authenticated() ) {
+            return;
+        }
+
+        $refresh_result = self::refresh_access_token();
+
+        if ( $refresh_result === true || ( is_array( $refresh_result ) && $refresh_result['success'] ) ) {
+            // Success - next refresh is already scheduled in refresh_access_token()
+            error_log( 'PTI: Automatic token refresh successful' );
+        } else {
+            // Log failure but don't reschedule - let manual intervention handle it
+            $error_message = is_array( $refresh_result ) ? $refresh_result['error'] : 'Unknown error';
+            error_log( 'PTI: Automatic token refresh failed: ' . $error_message );
+        }
+    }
+
+    /**
+     * Clear scheduled token refresh.
+     * Called when user disconnects account.
+     */
+    public static function clear_token_refresh() {
+        wp_clear_scheduled_hook( 'pti_refresh_token' );
+    }
+
+    /**
+     * Register WordPress hooks for authentication system.
+     */
+    public static function register() {
+        // Handle OAuth redirect
+        add_action( 'template_redirect', [ __CLASS__, 'handle_oauth_redirect' ] );
+
+        // Handle scheduled token refresh
+        add_action( 'pti_refresh_token', [ __CLASS__, 'handle_scheduled_refresh' ] );
     }
 }

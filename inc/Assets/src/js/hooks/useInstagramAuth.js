@@ -1,7 +1,13 @@
 import { useState, useEffect } from '@wordpress/element';
 
+/**
+ * Instagram authentication state management with OAuth popup handling.
+ *
+ * @param {Object} i18n - Internationalization strings
+ * @param {string} auth_redirect_status - OAuth redirect status from URL
+ * @returns {Object} Authentication state and handlers
+ */
 export default function useInstagramAuth(i18n, auth_redirect_status) {
-  // Initial values from pti_data
   const {
     is_configured: initialIsConfigured,
     is_authenticated: initialIsAuthenticated,
@@ -19,7 +25,6 @@ export default function useInstagramAuth(i18n, auth_redirect_status) {
   const [disconnecting, setDisconnecting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Check auth status from REST API
   const checkAuthStatus = (showAlerts = false) => {
     setIsLoading(true);
     wp.apiFetch({
@@ -40,7 +45,6 @@ export default function useInstagramAuth(i18n, auth_redirect_status) {
       });
   };
 
-  // Handle OAuth popup message
   useEffect(() => {
     const handleAuthMessage = (event) => {
       if (event.data && event.data.type === 'pti_auth_complete') {
@@ -58,7 +62,6 @@ export default function useInstagramAuth(i18n, auth_redirect_status) {
     return () => window.removeEventListener('message', handleAuthMessage);
   }, [i18n]);
 
-  // Handle auth redirect status from URL
   useEffect(() => {
     if (auth_redirect_status) {
       if (auth_redirect_status === 'success') {
@@ -72,7 +75,6 @@ export default function useInstagramAuth(i18n, auth_redirect_status) {
         }
         alert(errorMessage);
       }
-      // Clean up URL
       if (window.history.replaceState) {
         const currentUrl = new URL(window.location.href);
         currentUrl.searchParams.delete('pti_auth_success');
@@ -82,12 +84,10 @@ export default function useInstagramAuth(i18n, auth_redirect_status) {
     }
   }, [auth_redirect_status, i18n]);
 
-  // Initial check on mount
   useEffect(() => {
     checkAuthStatus();
   }, []);
 
-  // Handler for connect
   const handleConnectInstagram = () => {
     if (!isConfigured) {
       alert(i18n.not_configured_for_auth || 'App not configured.');
@@ -106,7 +106,6 @@ export default function useInstagramAuth(i18n, auth_redirect_status) {
     }
   };
 
-  // Handler for disconnect
   const handleDisconnect = async () => {
     if (!window.confirm(i18n.disconnect_instagram || 'Disconnect Instagram Account?')) return;
     setDisconnecting(true);

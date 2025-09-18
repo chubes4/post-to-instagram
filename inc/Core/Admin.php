@@ -1,10 +1,6 @@
 <?php
 /**
- * Instagram Admin Integration
- *
- * Centralized admin functionality for Gutenberg editor integration.
- * Handles asset enqueuing, data localization, and post content analysis
- * using action-based architecture patterns.
+ * Gutenberg editor integration with asset enqueuing and data localization.
  *
  * @package PostToInstagram\Core
  */
@@ -16,28 +12,23 @@ if ( ! defined( 'WPINC' ) ) {
 }
 
 /**
- * Admin Class
- *
- * Complete admin integration system via WordPress action hooks.
+ * Admin integration for Gutenberg block editor.
  */
 class Admin {
 
     /**
-     * Register all admin action hooks.
+     * Register WordPress action hooks.
      */
     public static function register() {
         add_action( 'enqueue_block_editor_assets', [ __CLASS__, 'enqueue_editor_assets' ] );
     }
 
     /**
-     * Enqueue assets for Gutenberg editor.
-     *
-     * Loads React components, localizes data, and handles post edit screens only.
+     * Enqueue assets for post edit screens only.
      */
     public static function enqueue_editor_assets() {
         global $pagenow;
 
-        // Only load on post edit screens
         if ( ! in_array( $pagenow, [ 'post.php', 'post-new.php' ] ) ) {
             return;
         }
@@ -46,9 +37,6 @@ class Admin {
         self::localize_editor_data();
     }
 
-    /**
-     * Enqueue JavaScript and CSS assets.
-     */
     private static function enqueue_scripts_and_styles() {
         $script_asset = require PTI_PLUGIN_DIR . 'inc/Assets/dist/js/post-editor.asset.php';
 
@@ -70,9 +58,6 @@ class Admin {
         );
     }
 
-    /**
-     * Localize data for JavaScript consumption.
-     */
     private static function localize_editor_data() {
         $post_id = get_the_ID();
         $image_ids = self::extract_post_images( $post_id );
@@ -114,21 +99,17 @@ class Admin {
 
         $image_ids = [];
 
-        // Include featured image
         $featured_id = get_post_thumbnail_id( $post_id );
         if ( $featured_id ) {
             $image_ids[] = $featured_id;
         }
 
-        // Parse Gutenberg blocks
         if ( has_blocks( $post->post_content ) ) {
             $blocks = parse_blocks( $post->post_content );
             foreach ( $blocks as $block ) {
-                // Single image blocks
                 if ( $block['blockName'] === 'core/image' && ! empty( $block['attrs']['id'] ) ) {
                     $image_ids[] = $block['attrs']['id'];
                 }
-                // Gallery blocks
                 if ( $block['blockName'] === 'core/gallery' &&
                      ! empty( $block['attrs']['ids'] ) &&
                      is_array( $block['attrs']['ids'] ) ) {
@@ -137,7 +118,6 @@ class Admin {
             }
         }
 
-        // Legacy content parsing (wp-image-X classes)
         if ( preg_match_all( '/wp-image-([0-9]+)/', $post->post_content, $matches ) ) {
             $image_ids = array_merge( $image_ids, $matches[1] );
         }

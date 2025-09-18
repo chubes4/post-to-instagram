@@ -1,5 +1,8 @@
 import { __ } from '@wordpress/i18n';
 
+/**
+ * Instagram caption textarea input component.
+ */
 const CaptionInput = ({ value, onChange, disabled }) => (
     <div className="pti-caption-box">
         <label className="pti-caption-label">

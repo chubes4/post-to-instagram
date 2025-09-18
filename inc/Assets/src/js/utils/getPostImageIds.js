@@ -1,4 +1,8 @@
-// Returns a unique array of all image IDs in the current post (including nested blocks, galleries, and featured image)
+/**
+ * Extract all image IDs from current post content and featured image.
+ *
+ * @returns {number[]} Array of unique WordPress attachment IDs
+ */
 export function getPostImageIds() {
     if (!window.wp || !window.wp.data || !window.wp.data.select) return [];
     try {
@@ -18,7 +22,6 @@ export function getPostImageIds() {
             });
         };
         walkBlocks(blocks);
-        // Add featured image
         const featuredId = window.wp.data.select('core/editor').getEditedPostAttribute('featured_media');
         if (featuredId && !ids.includes(Number(featuredId))) {
             ids.push(Number(featuredId));

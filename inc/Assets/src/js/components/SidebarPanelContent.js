@@ -7,6 +7,10 @@ import CropImageModal from './CropImageModal';
 import CaptionInput from './CaptionInput';
 import ScheduledPosts from './ScheduledPosts';
 
+/**
+ * Main sidebar panel content component for Instagram integration.
+ * Manages authentication, image selection, cropping, and posting workflow.
+ */
 const SidebarPanelContent = ({
     isLoading,
     isConfigured,
